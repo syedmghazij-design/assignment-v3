@@ -19,10 +19,17 @@ export default function TeacherApp({ profile, onLogout, onChangePw }) {
 
   async function load() {
     setLoading(true);
+    // multiple teachers: subject_teachers se meri subjects + purana teacher_id fallback
+    const { data: links } = await supabase
+      .from('subject_teachers')
+      .select('subject_id')
+      .eq('teacher_id', profile.id);
+    const myIds = (links || []).map((l) => l.subject_id);
+
     const { data: subjects } = await supabase
       .from('subjects')
-      .select('*, class:classes(id,name,code), teacher:profiles(full_name)')
-      .eq('teacher_id', profile.id)
+      .select('*, class:classes(id,name,code)')
+      .or(myIds.length ? `teacher_id.eq.${profile.id},id.in.(${myIds.join(',')})` : `teacher_id.eq.${profile.id}`)
       .order('name');
 
     const ids = (subjects || []).map((s) => s.id);

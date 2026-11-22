@@ -33,7 +33,10 @@ export default function StudentApp({ profile, onLogout, onChangePw }) {
         : Promise.resolve({ data: [] }),
     ]);
 
-    const subjects = subj.data || [];
+    // sirf woh subjects jo is section ko padhaye ja rahe hain (sections null = sab)
+    const subjects = (subj.data || []).filter(
+      (s) => !s.sections || s.sections.length === 0 || s.sections.includes(profile.section || 'A')
+    );
     const ids = subjects.map((s) => s.id);
 
     const [asg, subs, att, recs] = await Promise.all([

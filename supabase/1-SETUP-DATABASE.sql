@@ -34,7 +34,9 @@ drop table if exists public.attendance_sessions cascade;
 drop table if exists public.timetable cascade;
 drop table if exists public.submissions cascade;
 drop table if exists public.assignments cascade;
+drop table if exists public.subject_teachers cascade;
 drop table if exists public.subjects cascade;
+drop table if exists public.courses cascade;
 drop table if exists public.classes cascade;
 drop table if exists public.user_credentials cascade;
 drop table if exists public.settings cascade;
@@ -99,15 +101,38 @@ create table public.user_credentials (
   updated_at    timestamptz not null default now()
 );
 
-create table public.subjects (
+-- MASTER subject catalogue (ek hi baar add karo: "Programming Fundamentals")
+create table public.courses (
   id         uuid primary key default gen_random_uuid(),
-  class_id   uuid not null references public.classes(id) on delete cascade,
   name       text not null,
   code       text,
-  teacher_id uuid references public.profiles(id) on delete set null,
   semester   text,
   color      text default '#0f9d58',
   created_at timestamptz not null default now()
+);
+create unique index courses_name_uniq on public.courses (lower(name));
+
+-- kisi class ko diya gaya subject (offering)
+create table public.subjects (
+  id         uuid primary key default gen_random_uuid(),
+  class_id   uuid not null references public.classes(id) on delete cascade,
+  course_id  uuid references public.courses(id) on delete set null,
+  name       text not null,
+  code       text,
+  teacher_id uuid references public.profiles(id) on delete set null,  -- lead teacher (compat)
+  sections   text[],                                                  -- null = saare sections
+  semester   text,
+  color      text default '#0f9d58',
+  created_at timestamptz not null default now()
+);
+
+-- ek subject ke KAI teachers
+create table public.subject_teachers (
+  subject_id uuid not null references public.subjects(id) on delete cascade,
+  teacher_id uuid not null references public.profiles(id) on delete cascade,
+  is_lead    boolean not null default false,
+  added_at   timestamptz not null default now(),
+  primary key (subject_id, teacher_id)
 );
 
 create table public.assignments (
@@ -244,6 +269,19 @@ $fn$;
 
 grant execute on function public.set_my_password(text) to authenticated;
 
+-- kya ye teacher is subject ka teacher hai? (multiple teachers support)
+create or replace function public.is_subject_teacher(p_subject uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $fn$
+  select exists (select 1 from public.subject_teachers st where st.subject_id = p_subject and st.teacher_id = auth.uid())
+      or exists (select 1 from public.subjects s where s.id = p_subject and s.teacher_id = auth.uid());
+$fn$;
+grant execute on function public.is_subject_teacher(uuid) to authenticated;
+
 -- =====================================================================
 -- 4. AUTO PROFILE (trigger) — agar profile fail ho to auth user KABHI na ruke
 -- =====================================================================
@@ -324,8 +362,8 @@ create policy classes_write  on public.classes for all to authenticated
 
 create policy subjects_select on public.subjects for select to authenticated using (true);
 create policy subjects_write  on public.subjects for all to authenticated
-  using (public.is_admin() or teacher_id = auth.uid())
-  with check (public.is_admin() or teacher_id = auth.uid());
+  using (public.is_admin() or public.is_subject_teacher(id))
+  with check (public.is_admin() or public.is_subject_teacher(id));
 
 create policy assignments_select on public.assignments for select to authenticated
   using (
@@ -333,17 +371,17 @@ create policy assignments_select on public.assignments for select to authenticat
     or exists (
       select 1 from public.subjects s
       where s.id = assignments.subject_id
-        and (s.teacher_id = auth.uid() or s.class_id = public.my_class_id())
+        and (public.is_subject_teacher(s.id) or s.class_id = public.my_class_id())
     )
   );
 create policy assignments_write on public.assignments for all to authenticated
   using (
     public.is_admin()
-    or exists (select 1 from public.subjects s where s.id = assignments.subject_id and s.teacher_id = auth.uid())
+    or public.is_subject_teacher(assignments.subject_id)
   )
   with check (
     public.is_admin()
-    or exists (select 1 from public.subjects s where s.id = assignments.subject_id and s.teacher_id = auth.uid())
+    or public.is_subject_teacher(assignments.subject_id)
   );
 
 create policy submissions_select on public.submissions for select to authenticated
@@ -353,7 +391,7 @@ create policy submissions_select on public.submissions for select to authenticat
     or exists (
       select 1 from public.assignments a
       join public.subjects s on s.id = a.subject_id
-      where a.id = submissions.assignment_id and s.teacher_id = auth.uid()
+      where a.id = submissions.assignment_id and public.is_subject_teacher(a.subject_id)
     )
   );
 create policy submissions_insert on public.submissions for insert to authenticated
@@ -365,7 +403,7 @@ create policy submissions_update on public.submissions for update to authenticat
     or exists (
       select 1 from public.assignments a
       join public.subjects s on s.id = a.subject_id
-      where a.id = submissions.assignment_id and s.teacher_id = auth.uid()
+      where a.id = submissions.assignment_id and public.is_subject_teacher(a.subject_id)
     )
   );
 create policy submissions_delete on public.submissions for delete to authenticated
@@ -403,6 +441,17 @@ grant execute on all functions in schema public to anon, authenticated, service_
 alter default privileges in schema public grant all on tables    to anon, authenticated, service_role;
 alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
 alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
+
+alter table public.courses          enable row level security;
+alter table public.subject_teachers enable row level security;
+
+create policy courses_select on public.courses for select to authenticated using (true);
+create policy courses_write  on public.courses for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+create policy st_select on public.subject_teachers for select to authenticated using (true);
+create policy st_write  on public.subject_teachers for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
 
 -- =====================================================================
 -- 7. STORAGE BUCKETS + POLICIES

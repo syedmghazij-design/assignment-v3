@@ -16,19 +16,21 @@ export default function AdminApp({ profile, onLogout, onChangePw }) {
   const [tab, setTab] = useState('dashboard');
   const [loading, setLoading] = useState(true);
   const [store, setStore] = useState({
-    classes: [], subjects: [], teachers: [], students: [], assignments: [], subs: [], creds: {}, settings: {},
+    classes: [], courses: [], subjects: [], links: [], teachers: [], students: [], assignments: [], subs: [], creds: {}, settings: {},
   });
 
   async function load() {
-    const [cls, subj, teach, stud, asg, subs, creds, sett] = await Promise.all([
+    const [cls, subj, teach, stud, asg, subs, creds, sett, crs, lnk] = await Promise.all([
       supabase.from('classes').select('*').order('name'),
-      supabase.from('subjects').select('*, teacher:profiles(full_name), class:classes(name,code)').order('name'),
+      supabase.from('subjects').select('*, class:classes(name,code)').order('name'),
       supabase.from('profiles').select('*').eq('role', 'teacher').order('full_name'),
       supabase.from('profiles').select('*, class:classes(name,code)').eq('role', 'student').order('roll_no'),
       supabase.from('assignments').select('*, subject:subjects(name,code,class:classes(name))').order('created_at', { ascending: false }),
       supabase.from('submissions').select('id,status,is_late,submitted_at,assignment_id,student:profiles!submissions_student_id_fkey(roll_no,full_name)').order('submitted_at', { ascending: false }).limit(400),
       supabase.from('user_credentials').select('user_id,password_text'),
       supabase.from('settings').select('*'),
+      supabase.from('courses').select('*').order('name'),
+      supabase.from('subject_teachers').select('subject_id, teacher_id, is_lead'),
     ]);
 
     const credMap = {};
@@ -36,9 +38,28 @@ export default function AdminApp({ profile, onLogout, onChangePw }) {
     const setMap = {};
     (sett.data || []).forEach((s) => (setMap[s.key] = s.value));
 
+    // har subject ke teachers (multiple) + lead teacher
+    const bySub = {};
+    (lnk.data || []).forEach((l) => {
+      (bySub[l.subject_id] = bySub[l.subject_id] || []).push(l.teacher_id);
+    });
+    const teacherName = {};
+    (teach.data || []).forEach((t) => (teacherName[t.id] = t.full_name));
+    const subjects = (subj.data || []).map((x) => {
+      const ids = bySub[x.id] || (x.teacher_id ? [x.teacher_id] : []);
+      return {
+        ...x,
+        teacher_ids: ids,
+        teachers: ids.map((id) => ({ id, full_name: teacherName[id] || '—' })),
+        teacher: { full_name: ids.map((id) => teacherName[id]).filter(Boolean).join(', ') || null },
+      };
+    });
+
     setStore({
       classes: cls.data || [],
-      subjects: subj.data || [],
+      courses: crs.data || [],
+      links: lnk.data || [],
+      subjects,
       teachers: teach.data || [],
       students: stud.data || [],
       assignments: asg.data || [],
@@ -124,6 +145,49 @@ export default function AdminApp({ profile, onLogout, onChangePw }) {
 }
 
 /* ================================================================== */
+function AuditCard({ store, go }) {
+  const hasT = (x) => (x.teacher_ids || []).length > 0 || !!x.teacher_id;
+
+  const noTeacher = store.subjects.filter((x) => !hasT(x));
+  const noClassStudent = store.students.filter((x) => !x.class_id);
+  const emptyClasses = store.classes.filter((c) => !store.subjects.some((x) => x.class_id === c.id));
+  const idleTeachers = store.teachers.filter(
+    (t) => !store.subjects.some((x) => (x.teacher_ids || []).includes(t.id) || x.teacher_id === t.id)
+  );
+  const noRoll = store.students.filter((x) => !x.roll_no);
+
+  const rows = [
+    { n: noTeacher.length, txt: 'subject bina teacher — classes me assign karein', tab: 'classes', tone: 'var(--amber)' },
+    { n: emptyClasses.length, txt: 'class bina kisi subject ke', tab: 'classes', tone: 'var(--amber)' },
+    { n: idleTeachers.length, txt: 'teacher ko koi subject assign nahi', tab: 'teachers', tone: 'var(--ink-3)' },
+    { n: noClassStudent.length, txt: 'student bina class', tab: 'students', tone: 'var(--red)' },
+    { n: noRoll.length, txt: 'student bina roll number', tab: 'students', tone: 'var(--red)' },
+  ].filter((r) => r.n > 0);
+
+  return (
+    <Card className="tight" style={{ marginBottom: 16, border: rows.length ? '1.5px solid var(--amber)' : '1.5px solid var(--green-400)' }}>
+      <div className="between" style={{ marginBottom: rows.length ? 10 : 0 }}>
+        <div style={{ fontWeight: 800, fontSize: 13.5 }}>
+          {rows.length ? '⚠️ Audit — in cheezon per nazar daalein' : '✅ Audit — sab kuch theek juda hua hai'}
+        </div>
+        {rows.length > 0 && <Badge kind="pending">{rows.reduce((a, b) => a + b.n, 0)} cheezein</Badge>}
+      </div>
+      {rows.map((r) => (
+        <button key={r.txt} className="between"
+          onClick={() => go(r.tab)}
+          style={{ width: '100%', background: '#fff', border: '1px solid var(--line)', borderRadius: 10,
+            padding: '8px 12px', marginBottom: 6, cursor: 'pointer', textAlign: 'left' }}>
+          <span style={{ fontSize: 13 }}>
+            <b style={{ color: r.tone }}>{r.n}</b> {r.txt}
+          </span>
+          <span className="muted" style={{ fontSize: 12 }}>fix →</span>
+        </button>
+      ))}
+    </Card>
+  );
+}
+
+/* ================================================================== */
 function Dashboard({ stats, store, go }) {
   const recent = store.subs.slice(0, 8);
   const perClass = store.classes.map((c) => ({
@@ -167,6 +231,9 @@ function Dashboard({ stats, store, go }) {
         <Stat label="Classes" value={stats.classes} hint={`${stats.subjects} subjects`} onClick={() => go('classes')} />
         <Stat label="Assignments" value={stats.assignments} hint={`${stats.subs} submissions`} onClick={() => go('subjects')} />
       </div>
+
+      <AuditCard store={store} go={go} />
+
 
       <div className="grid g3" style={{ marginBottom: 16 }}>
         <Stat label="Pending review" value={stats.pending} tone="warn" hint="Teachers ko dekhni hain" />

@@ -75,7 +75,7 @@ export default function TeachersView({ store, reload }) {
 
   function openAssign(t) {
     setAssignT(t);
-    setSelSubs(store.subjects.filter((x) => x.teacher_id === t.id).map((x) => x.id));
+    setSelSubs(store.subjects.filter((x) => (x.teacher_ids || []).includes(t.id) || x.teacher_id === t.id).map((x) => x.id));
   }
 
   function toggleSub(id) {
@@ -86,16 +86,32 @@ export default function TeachersView({ store, reload }) {
     if (!assignT) return;
     setBusy(true);
     try {
-      const current = store.subjects.filter((x) => x.teacher_id === assignT.id).map((x) => x.id);
+      const current = store.subjects
+        .filter((x) => (x.teacher_ids || []).includes(assignT.id) || x.teacher_id === assignT.id)
+        .map((x) => x.id);
       const add = selSubs.filter((id) => !current.includes(id));
       const rem = current.filter((id) => !selSubs.includes(id));
+
       if (add.length) {
-        const { error } = await supabase.from('subjects').update({ teacher_id: assignT.id }).in('id', add);
-        if (error) throw error;
+        const rows = add.map((sid) => ({ subject_id: sid, teacher_id: assignT.id, is_lead: false }));
+        const { error } = await supabase.from('subject_teachers').insert(rows);
+        if (error && !/duplicate/i.test(error.message)) throw error;
+        // agar subject ka koi teacher hi nahi tha to ye lead ban jaye
+        for (const sid of add) {
+          const sub = store.subjects.find((x) => x.id === sid);
+          if (sub && !sub.teacher_id) await supabase.from('subjects').update({ teacher_id: assignT.id }).eq('id', sid);
+        }
       }
       if (rem.length) {
-        const { error } = await supabase.from('subjects').update({ teacher_id: null }).in('id', rem);
+        const { error } = await supabase.from('subject_teachers').delete().eq('teacher_id', assignT.id).in('subject_id', rem);
         if (error) throw error;
+        for (const sid of rem) {
+          const sub = store.subjects.find((x) => x.id === sid);
+          if (sub && sub.teacher_id === assignT.id) {
+            const others = (sub.teacher_ids || []).filter((x) => x !== assignT.id);
+            await supabase.from('subjects').update({ teacher_id: others[0] || null }).eq('id', sid);
+          }
+        }
       }
       toast(`${selSubs.length} subject(s) assign ho gaye ✅`);
       setAssignT(null);
@@ -156,7 +172,7 @@ export default function TeachersView({ store, reload }) {
               </thead>
               <tbody>
                 {list.map((t) => {
-                  const subs = store.subjects.filter((s) => s.teacher_id === t.id);
+                  const subs = store.subjects.filter((s) => (s.teacher_ids || []).includes(t.id) || s.teacher_id === t.id);
                   return (
                     <tr key={t.id}>
                       <td><b>{t.full_name}</b></td>
@@ -226,8 +242,8 @@ export default function TeachersView({ store, reload }) {
                   🏫 {c.name} <span className="muted" style={{ fontWeight: 500 }}>{c.code}</span>
                 </div>
                 {list.map((x) => {
-                  const mine = x.teacher_id === assignT?.id;
-                  const other = x.teacher_id && x.teacher_id !== assignT?.id;
+                  const mine = (x.teacher_ids || []).includes(assignT?.id) || x.teacher_id === assignT?.id;
+                  const other = !mine && ((x.teacher_ids || []).length > 0 || !!x.teacher_id);
                   return (
                     <label key={x.id} className="between"
                       style={{ padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 10, marginBottom: 6, cursor: 'pointer', background: selSubs.includes(x.id) ? 'var(--green-50)' : '#fff' }}>

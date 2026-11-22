@@ -17,7 +17,7 @@ select
     where table_schema = 'public'
       and table_name in ('profiles','classes','subjects','assignments',
                          'submissions','timetable','attendance_sessions',
-                         'attendance_records','user_credentials','settings')) as "7_tables",
+                         'attendance_records','user_credentials','settings','courses','subject_teachers')) as "7_tables",
   (select count(*) from storage.buckets
     where id in ('assignment-files','submission-files',
                  'attendance-images','timetable-images'))  as "8_buckets",
@@ -33,7 +33,7 @@ where p.role = 'admin';
 --    4_confirmed = true
 --    5_identity  = true
 --    6_password_set = true
---    7_tables    = 10
+--    7_tables    = 12
 --    8_buckets   = 4
 --    9_settings  = 4
 --

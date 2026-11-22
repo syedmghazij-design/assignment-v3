@@ -33,7 +33,8 @@ gims-portal/
 | File | Kya karti hai | Kab chalayein |
 |---|---|---|
 | **`1-SETUP-DATABASE.sql`** | **Poora database ek hi file me**: 10 tables, indexes, RLS policies, GRANTS, storage buckets, settings, `resolve_login`, `ensure_admin`, admin RPCs, `auth_tokens_guard`, `notify pgrst`. Aakhir me verify row deti hai. | **Naye Supabase project per SIRF EK BAAR.** Dobara chalana bhi safe hai — par **saara data delete** ho jata hai (`drop table`). |
-| `2-CHECK-DATABASE.sql` | Sirf **padhne wali** file — kuch badalti nahi. Batati hai: admin login theek hai? password sahi? 10 tables? 4 buckets? RLS policies? | Jab shak ho ke database theek hai ya nahi. Kabhi bhi chala sakte hain. |
+| `2-CHECK-DATABASE.sql` | Sirf **padhne wali** file — kuch badalti nahi. Batati hai: admin login theek hai? password sahi? 12 tables? 4 buckets? RLS policies? | Jab shak ho ke database theek hai ya nahi. Kabhi bhi chala sakte hain. |
+| **`3-MIGRATE-v2.sql`** | **Purane database ko v2 banati hai** — master subjects + multiple teachers + sections. **Data safe rehta hai** (kuch delete nahi hota). Dobara chalana bhi safe. | Jab pehle se data ho aur naye features chahiye. Naya project banaya to zaroorat nahi (1-SETUP me sab hai). |
 
 > ⚠️ `1-SETUP-DATABASE.sql` me `drop table` hai. Naya project = theek. Purane project per chalane se **data chala jayega**.
 
@@ -64,9 +65,9 @@ gims-portal/
 | File | Kya karta hai |
 |---|---|
 | `AdminApp.js` | Admin ka **dhancha**: sidebar, tabs, aur **saara data ek saath load** karta hai (`store`: classes, subjects, teachers, students, assignments, submissions, passwords, settings). Naya data chahiye to `load()` me query add karo. |
-| `ClassesView.js` | Classes/programs (BS CS, BS AI…). Sections (A/B/C), session, per-section student count, aur us class ke subjects + teachers. |
-| `SubjectsView.js` | Subjects: class select, subject name/code, **teacher assign**, semester, color. |
-| `TeachersView.js` | Teachers list + **📚 Subjects button** → modal me class-wise tick lagao. Ek teacher ko kai classes ke kai subjects de sakte hain. Password show/reset/delete bhi. |
+| `ClassesView.js` | **Class cards → Open →** us class ke saare subjects, har subject ke **teachers + sections**, aur **+ Subject assign karein** (master list se multi-select + teachers multi-select + sections). Subject remove bhi yahin. |
+| `SubjectsView.js` | **MASTER subject list** — `Programming Fundamentals` ek hi baar add hota hai. Har card per dikhta hai: kitni classes me hai, kaun se teachers padha rahe hain. |
+| `TeachersView.js` | Teachers list + **📚 Subjects button** → class-wise tick. Ab **multiple teachers** support (ek subject ke 4+ teachers). Password show/reset/delete bhi. |
 | `StudentsView.js` | Students: single add, **⚡ bulk add (400+)**, edit, reset password, delete, CSV export. Class/section select karte waqt **subjects ka preview** dikhta hai. |
 | `AttendanceView.js` | **OCR attendance**: sheet ki photo upload → text nikalo → students match karo → manual edit → save. |
 | `TimetableView.js` | **Class + section wise** timetable grid. Cell per click → subject/time/room → save. OCR se image import bhi. |
@@ -75,12 +76,12 @@ gims-portal/
 ### Teacher (`components/teacher/`)
 | File | Kya karta hai |
 |---|---|
-| `TeacherApp.js` | Poora teacher app: **My Classes → Class → Subject → ➕ Nayi assignment / 📥 Check karni hai**, To Review, Late Submissions, My Schedule, Profile. `NewAssignmentModal` aur `ReviewModal` bhi isi file me hain. |
+| `TeacherApp.js` | Poora teacher app: **My Classes → Class → Subject → ➕ Nayi assignment / 📥 Check karni hai**, To Review, Late Submissions, My Schedule, Profile. Multiple teachers support (`subject_teachers`). `NewAssignmentModal` aur `ReviewModal` bhi isi file me hain. |
 
 ### Student (`components/student/`)
 | File | Kya karta hai |
 |---|---|
-| `StudentApp.js` | Poora student app: dashboard, **Subjects** (subject → assignment → upload), Timetable, Attendance %, Profile. |
+| `StudentApp.js` | Poora student app: dashboard, **Subjects** (sirf apne section wale), subject → assignment → upload, Timetable, Attendance %, Profile. |
 
 ---
 
@@ -122,9 +123,32 @@ gims-portal/
 
 # 🧠 3 cheezein jo yaad rakhni hain
 
-1. **Student ke subjects** khud class se aate hain — student ko alag se subject assign nahi karna padta. Class badlo → subjects khud badal jate hain.
-2. **Teacher ke classes** subject se aate hain — subject per teacher assign karo, classes khud aa jayengi.
+1. **Student ke subjects** khud class se aate hain (section ke hisaab se) — student ko alag se assign nahi karna padta.
+2. **Teacher ke classes** subject se aate hain — class me subject assign karte waqt teachers tick karo, classes khud aa jayengi.
 3. **Timetable** class + section ka hota hai — har section ka apna alag time table.
+
+---
+
+# 🧱 Database ka naya model (v2)
+
+```
+courses (MASTER)                subjects (class ko diya gaya)         subject_teachers
+┌──────────────────┐          ┌───────────────────────────┐         ┌──────────────────┐
+│ id               │◄─────────│ course_id                 │◄────────│ subject_id       │
+│ name  "Prog Fund"│          │ class_id  → BS CS          │         │ teacher_id       │
+│ code  "CS-101"   │          │ sections  → {A,B} / null   │         │ is_lead          │
+│ color            │          │ name (copy), color         │         └──────────────────┘
+└──────────────────┘          └───────────────────────────┘                 │
+                                                                             ▼
+                                                                    profiles (teacher)
+```
+
+- **courses** = master list (ek hi baar add)
+- **subjects** = "is class ko ye subject" (offering) + kaun se sections
+- **subject_teachers** = kaun kaun se teachers (4+ bhi ho sakte hain)
+- `subjects.teacher_id` sirf **lead teacher** ke liye rakha gaya hai (purana compatibility)
+
+**RLS:** `is_subject_teacher(subject_id)` function decide karta hai ke teacher ko us subject ka data milna chahiye ya nahi — `subject_teachers` per based.
 
 ---
 
@@ -134,6 +158,8 @@ gims-portal/
 |---|---|
 | Rang/design badalna | `app/globals.css` |
 | Naya field student me add karna | `supabase/1-SETUP-DATABASE.sql` (column) + `StudentsView.js` (form) |
+| Subject master list me add | Admin → **Subjects** tab (code: `SubjectsView.js`) |
+| Class me subject + teacher dena | Admin → **Classes → Open → + Subject assign** (code: `ClassesView.js`) |
 | Login page ka text | `components/Login.js` |
 | Naya tab admin sidebar me | `AdminApp.js` (NAV + render) |
 | Teacher ka flow badalna | `teacher/TeacherApp.js` |

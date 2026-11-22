@@ -143,57 +143,44 @@ Supabase → neeche **⚙ Project Settings** → **API**
 
 # STEP 5 — Portal bharna (isi order me) ⚠️
 
-> **Order badalna nahi** — har step agle step ke liye zaroori hai.
+> **Order badalna nahi** — har step agle ke liye zaroori hai.
 
 | # | Kahan | Kya karein |
 |---|---|---|
-| **1** | **Classes** → + New class | `BS Computer Science` / code `BS-CS` / sections `A,B` / session `2026-2030` |
-| **2** | **Teachers** → + New teacher | naam + login ID + password |
-| **3** | **Subjects** → + New subject | class select → subject name → **teacher assign** |
-| **4** | **Teachers** → 📚 button | class-wise tick lagao — ek teacher ko **kai classes ke kai subjects** de sakte hain |
-| **5** | **Students** → + New ya ⚡ Bulk | class + section select → **subjects khud dikh jayenge** |
-| **6** | **Time Table** | class + **section** select → har box per click → subject/time/room → Save |
-| **7** | **Attendance** | class + section → sheet ki photo upload → OCR → check → Save |
+| **1** | **Subjects** | Master list: `Programming Fundamentals`, `Calculus`… — **ek hi baar** add karo |
+| **2** | **Teachers** | naam + login ID + password |
+| **3** | **Classes** → + New class | `BS Computer Science` / `BSCS` / sections `A,B` / session |
+| **4** | **Classes** → **Open →** | **+ Subject assign karein** → subjects tick karo → **teachers tick karo** → sections tick karo → Save |
+| **5** | **Students** → + New / ⚡ Bulk | class + section select → subjects khud dikh jayenge |
+| **6** | **Time Table** | class + **section** → box per click → subject/time/room → Save |
+| **7** | **Attendance** | class + section → sheet ki photo → OCR → check → Save |
+
+> 💡 **Same subject kai classes me?** Bas har class me jaa kar wahi subject tick kar do — master list me dobara add karne ki zaroorat nahi.
+> 💡 **Ek subject ke 4 teachers?** Assign karte waqt chaar ke chaar tick kar do. Pehla **lead** banega.
 
 ### Cheezein khud jud jati hain
-- **Student ke subjects** = us ki class ke subjects → class badlo, subjects khud badal jate hain
-- **Teacher ki classes** = us ke subjects ki classes → subject assign = class assign
-- **Time table** = class **+ section** ka alag (A ka alag, B ka alag)
+- **Student ke subjects** = us ki class ke subjects (sirf us ke section wale)
+- **Teacher ki classes** = jahan us ke subjects assign hain
+- **Time table** = class **+ section** ka alag
 
 ---
 
-## 👩‍🏫 Teacher ka flow (login ke baad)
+## 👩‍🏫 Teacher ka flow
 
 ```
-My Classes  →  class kholein (BS CS)
-            →  subject ki 2 buttons:
-                 ➕ Nayi assignment deni hai   →  title, deadline, marks, file → publish
-                 📥 Check karni hai (3)        →  saari submissions ek list me → Review
+My Classes → class kholein → subject ke saamne:
+      ➕ Nayi assignment deni hai
+      📥 Check karni hai (3)
 ```
-
-- **To Review** = saari nayi submissions (ek jagah)
-- **Late Submissions** = deadline ke baad aayi — alag section
-- **My Schedule** = sirf apni classes ka time table
-- Review me: file dekho → marks + feedback → **Accept** ya **Reject** (reject hone par student dobara upload kar sakta hai)
-
----
 
 ## 👨‍🎓 Student ka flow
-
 ```
-Subjects → subject kholein → assignment kholein → file upload
+Subjects → subject → assignment → file upload
 ```
-- Deadline ke baad upload → **Late** mark hota hai (DB trigger)
-- Reject hone par **dobara upload** ho sakta hai
-- Dashboard per pending / accepted / rejected ke clickable boxes
 
----
-
-## ✅ Test karo (5 minute)
-
-1. Ek student se login (roll number + password) → subject → file upload
-2. Teacher se login → My Classes → class → **📥 Check karni hai** → Review → marks → **Accept**
-3. Student per wapas → **Accepted** box per click → status badal gaya ✅
+## 🩺 Admin Dashboard per "Audit" card
+Rozana ek nazar — batata hai kya adhoora hai:
+`subject bina teacher` · `class bina subject` · `student bina class` · `teacher ko subject nahi`
 
 ---
 

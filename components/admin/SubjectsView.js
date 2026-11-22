@@ -3,110 +3,146 @@
 import { useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
-import { Badge, Btn, Card, Empty, Field, Input, Modal, SectionTitle, Select } from '@/components/ui';
-import { fmtDateTime, openFile } from '@/lib/utils';
+import { Badge, Btn, Card, Empty, Field, Input, Modal, Select } from '@/components/ui';
+
+const empty = { name: '', code: '', semester: '', color: '#0f9d58' };
+
+const COLORS = ['#0f9d58', '#0ea5e9', '#8b5cf6', '#f59e0b', '#ef4444', '#14b8a6', '#6366f1', '#ec4899'];
 
 export default function SubjectsView({ store, reload }) {
-  const [classFilter, setClassFilter] = useState('all');
   const [open, setOpen] = useState(false);
+  const [form, setForm] = useState(empty);
   const [editing, setEditing] = useState(null);
-  const [detail, setDetail] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState({ class_id: '', name: '', code: '', teacher_id: '', semester: '', color: '#0f9d58' });
+  const [q, setQ] = useState('');
 
-  const list = useMemo(
-    () => (classFilter === 'all' ? store.subjects : store.subjects.filter((s) => s.class_id === classFilter)),
-    [store.subjects, classFilter]
-  );
+  const list = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return store.courses;
+    return store.courses.filter(
+      (c) => c.name?.toLowerCase().includes(s) || String(c.code || '').toLowerCase().includes(s)
+    );
+  }, [store.courses, q]);
+
+  // ek master subject kahan kahan padhaya ja raha hai
+  const usageOf = (courseId) => store.subjects.filter((s) => s.course_id === courseId);
 
   function startNew() {
     setEditing(null);
-    setForm({ class_id: store.classes[0]?.id || '', name: '', code: '', teacher_id: '', semester: '', color: '#0f9d58' });
+    setForm(empty);
     setOpen(true);
   }
 
-  function startEdit(s) {
-    setEditing(s);
-    setForm({ class_id: s.class_id, name: s.name, code: s.code || '', teacher_id: s.teacher_id || '', semester: s.semester || '', color: s.color || '#0f9d58' });
+  function startEdit(c) {
+    setEditing(c);
+    setForm({ name: c.name, code: c.code || '', semester: c.semester || '', color: c.color || '#0f9d58' });
     setOpen(true);
   }
 
   async function save() {
-    if (!form.class_id || !form.name.trim()) return toast('Class aur subject name zaroori hai', 'err');
+    if (!form.name.trim()) return toast('Subject ka naam zaroori hai', 'err');
     setBusy(true);
     const payload = {
-      class_id: form.class_id,
       name: form.name.trim(),
       code: form.code.trim() || null,
-      teacher_id: form.teacher_id || null,
       semester: form.semester.trim() || null,
       color: form.color,
     };
     const { error } = editing
-      ? await supabase.from('subjects').update(payload).eq('id', editing.id)
-      : await supabase.from('subjects').insert(payload);
+      ? await supabase.from('courses').update(payload).eq('id', editing.id)
+      : await supabase.from('courses').insert(payload);
+    if (error) {
+      setBusy(false);
+      return toast(
+        /duplicate|unique/i.test(error.message) ? 'Ye subject pehle se mojood hai' : error.message,
+        'err'
+      );
+    }
+    // naam badla to offerings bhi update karo
+    if (editing) {
+      await supabase.from('subjects').update({ name: payload.name, code: payload.code, color: payload.color }).eq('course_id', editing.id);
+    }
     setBusy(false);
-    if (error) return toast(error.message, 'err');
-    toast(editing ? 'Subject update ho gaya' : 'Subject add ho gaya ✅');
+    toast(editing ? 'Subject update ho gaya ✅' : 'Subject add ho gaya ✅ — ab Class me assign karein');
     setOpen(false);
     reload();
   }
 
-  async function remove(s) {
-    if (!confirm(`${s.name} delete karein? Is ki saari assignments bhi delete ho jayengi.`)) return;
-    const { error } = await supabase.from('subjects').delete().eq('id', s.id);
+  async function remove(c) {
+    const n = usageOf(c.id).length;
+    if (!n) {
+      if (!confirm(`"${c.name}" delete karein?`)) return;
+      const { error } = await supabase.from('courses').delete().eq('id', c.id);
+      if (error) return toast(error.message, 'err');
+      toast('Subject delete ho gaya');
+      return reload();
+    }
+    if (!confirm(`"${c.name}" ${n} class(es) me assign hai. Delete karne se wo assignments bhi hat jayengi. Delete karein?`)) return;
+    const { error } = await supabase.from('courses').delete().eq('id', c.id);
     if (error) return toast(error.message, 'err');
     toast('Subject delete ho gaya');
     reload();
   }
 
-  async function removeAssignment(a) {
-    if (!confirm(`"${a.title}" delete karein?`)) return;
-    const { error } = await supabase.from('assignments').delete().eq('id', a.id);
-    if (error) return toast(error.message, 'err');
-    toast('Assignment delete ho gayi');
-    setDetail(null);
-    reload();
-  }
-
-  const asgOf = (s) => store.assignments.filter((a) => a.subject_id === s.id);
-
   return (
     <>
       <div className="topbar">
-        <div><h1>Subjects</h1><div className="sub">Subject banayein aur teacher assign karein</div></div>
+        <div>
+          <h1>Subjects (master list)</h1>
+          <div className="sub">
+            Subject yahan <b>ek hi baar</b> add karo — phir har class ko assign karo (Classes → class kholein)
+          </div>
+        </div>
         <div className="row">
-          <Select value={classFilter} onChange={(e) => setClassFilter(e.target.value)} style={{ width: 200 }}>
-            <option value="all">All classes</option>
-            {store.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </Select>
+          <Input placeholder="Search subject…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 200 }} />
           <Btn variant="primary" onClick={startNew}>+ New subject</Btn>
         </div>
       </div>
 
+      <Card className="tight" style={{ marginBottom: 14, background: 'var(--green-50)' }}>
+        <div style={{ fontSize: 13 }}>
+          💡 <b>Programming Fundamentals</b> sirf ek baar yahan add karo. Phir <b>Classes</b> me ja kar us class ko
+          ye subject assign karo — aur wahan hi decide karo ke <b>kaun kaun se teachers</b> padhayenge aur
+          <b> kaun se sections</b> ko.
+        </div>
+      </Card>
+
       {list.length === 0 ? (
-        <Card><Empty icon="📚" text="Koi subject nahi. Pehle class banayen, phir subject add karein." /></Card>
+        <Card><Empty icon="📚" text="Koi subject nahi. '+ New subject' se pehla subject add karein (jaise Programming Fundamentals)." /></Card>
       ) : (
         <div className="grid g3">
-          {list.map((s) => {
-            const asg = asgOf(s);
+          {list.map((c) => {
+            const use = usageOf(c.id);
+            const classes = Array.from(new Set(use.map((s) => s.class?.name).filter(Boolean)));
+            const teachers = Array.from(new Set(use.flatMap((s) => (s.teachers || []).map((t) => t.full_name)))).filter(Boolean);
             return (
-              <Card key={s.id}>
+              <Card key={c.id}>
                 <div className="between">
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 800, fontSize: 15 }}>{s.name}</div>
-                    <div className="muted" style={{ fontSize: 12 }}>{s.class?.name} · {s.code || '—'}</div>
+                  <div className="row" style={{ gap: 8 }}>
+                    <span style={{ width: 12, height: 12, borderRadius: 99, background: c.color || '#0f9d58' }} />
+                    <div>
+                      <div style={{ fontWeight: 800, fontSize: 15.5 }}>{c.name}</div>
+                      <div className="muted" style={{ fontSize: 12 }}>
+                        {c.code || '—'} {c.semester ? `· ${c.semester}` : ''}
+                      </div>
+                    </div>
                   </div>
-                  <span style={{ width: 10, height: 10, borderRadius: 99, background: s.color || '#0f9d58' }} />
+                  <Badge kind={use.length ? 'accepted' : 'gray'}>{use.length} class(es)</Badge>
                 </div>
-                <div className="row" style={{ marginTop: 10, gap: 6 }}>
-                  <Badge kind={s.teacher ? 'accepted' : 'rejected'}>{s.teacher?.full_name || 'No teacher'}</Badge>
-                  <Badge kind="gray">{asg.length} assignments</Badge>
+
+                <div className="row" style={{ marginTop: 12, gap: 4, flexWrap: 'wrap' }}>
+                  {classes.length ? classes.map((n) => <Badge key={n} kind="info">🏫 {n}</Badge>) : <span className="muted" style={{ fontSize: 12 }}>kisi class me assign nahi</span>}
                 </div>
+
+                {teachers.length > 0 && (
+                  <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+                    👩‍🏫 {teachers.join(', ')}
+                  </div>
+                )}
+
                 <div className="row" style={{ marginTop: 14 }}>
-                  <Btn size="sm" onClick={() => setDetail(s)}>Assignments</Btn>
-                  <Btn size="sm" onClick={() => startEdit(s)}>Edit</Btn>
-                  <Btn size="sm" variant="danger" onClick={() => remove(s)}>Delete</Btn>
+                  <Btn size="sm" onClick={() => startEdit(c)}>Edit</Btn>
+                  <Btn size="sm" variant="danger" onClick={() => remove(c)}>Delete</Btn>
                 </div>
               </Card>
             );
@@ -114,59 +150,30 @@ export default function SubjectsView({ store, reload }) {
         </div>
       )}
 
-      {/* add / edit */}
-      <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Edit subject' : 'New subject'}
-        footer={<><Btn onClick={() => setOpen(false)}>Cancel</Btn><Btn variant="primary" onClick={save} disabled={busy}>Save</Btn></>}>
-        <Field label="Class">
-          <Select value={form.class_id} onChange={(e) => setForm({ ...form, class_id: e.target.value })}>
-            {store.classes.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.code})</option>)}
-          </Select>
+      <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Edit subject' : 'New subject (master list)'}
+        footer={<><Btn onClick={() => setOpen(false)}>Cancel</Btn><Btn variant="primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Btn></>}>
+        <Field label="Subject ka naam" hint="Jaise: Programming Fundamentals">
+          <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Programming Fundamentals" />
         </Field>
         <div className="grid g2">
-          <Field label="Subject name"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Data Structures" /></Field>
-          <Field label="Code"><Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="CS-201" /></Field>
+          <Field label="Code" hint="Jaise: CS-101"><Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="CS-101" /></Field>
+          <Field label="Semester"><Input value={form.semester} onChange={(e) => setForm({ ...form, semester: e.target.value })} placeholder="1st" /></Field>
         </div>
-        <div className="grid g2">
-          <Field label="Teacher">
-            <Select value={form.teacher_id} onChange={(e) => setForm({ ...form, teacher_id: e.target.value })}>
-              <option value="">— none —</option>
-              {store.teachers.map((t) => <option key={t.id} value={t.id}>{t.full_name}</option>)}
-            </Select>
-          </Field>
-          <Field label="Semester"><Input value={form.semester} onChange={(e) => setForm({ ...form, semester: e.target.value })} placeholder="Fall 2026" /></Field>
+        <Field label="Rang (badge ka color)">
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            {COLORS.map((c) => (
+              <button key={c} type="button" onClick={() => setForm({ ...form, color: c })}
+                style={{
+                  width: 28, height: 28, borderRadius: 99, background: c, cursor: 'pointer',
+                  border: form.color === c ? '3px solid #111' : '2px solid #fff',
+                  boxShadow: '0 0 0 1px #ddd',
+                }} />
+            ))}
+          </div>
+        </Field>
+        <div className="hint">
+          Yahan sirf subject banta hai. <b>Class assign + teachers</b> Classes tab me hoga.
         </div>
-        <Field label="Colour (segment dot)"><input type="color" className="input" style={{ height: 44, padding: 4 }} value={form.color} onChange={(e) => setForm({ ...form, color: e.target.value })} /></Field>
-      </Modal>
-
-      {/* assignments list (admin full access) */}
-      <Modal open={!!detail} onClose={() => setDetail(null)} wide title={detail ? `${detail.name} — assignments` : ''}>
-        {detail && (
-          <>
-            {asgOf(detail).length === 0 ? <Empty icon="🗂️" text="Is subject me koi assignment nahi." /> : (
-              <div className="list">
-                {asgOf(detail).map((a) => {
-                  const subs = store.subs.filter((s) => s.assignment_id === a.id);
-                  return (
-                    <div key={a.id} className="item">
-                      <div>
-                        <div className="t">{a.title}</div>
-                        <div className="m">
-                          <span>📅 {fmtDateTime(a.deadline)}</span>
-                          <span>🎯 {a.max_marks}</span>
-                          <span>{subs.length} submissions</span>
-                        </div>
-                      </div>
-                      <div className="row">
-                        {a.file_path && <Btn size="sm" onClick={() => openFile('assignment-files', a.file_path)}>File</Btn>}
-                        <Btn size="sm" variant="danger" onClick={() => removeAssignment(a)}>Delete</Btn>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </>
-        )}
       </Modal>
     </>
   );
