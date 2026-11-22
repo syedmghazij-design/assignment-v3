@@ -34,6 +34,7 @@ drop table if exists public.attendance_sessions cascade;
 drop table if exists public.timetable cascade;
 drop table if exists public.submissions cascade;
 drop table if exists public.assignments cascade;
+drop table if exists public.course_teachers cascade;
 drop table if exists public.subject_teachers cascade;
 drop table if exists public.subjects cascade;
 drop table if exists public.courses cascade;
@@ -124,6 +125,14 @@ create table public.subjects (
   semester   text,
   color      text default '#0f9d58',
   created_at timestamptz not null default now()
+);
+
+-- MASTER subject ke teachers (teacher add karte waqt yahan se subjects chunte hain)
+create table public.course_teachers (
+  course_id  uuid not null references public.courses(id) on delete cascade,
+  teacher_id uuid not null references public.profiles(id) on delete cascade,
+  added_at   timestamptz not null default now(),
+  primary key (course_id, teacher_id)
 );
 
 -- ek subject ke KAI teachers
@@ -443,10 +452,15 @@ alter default privileges in schema public grant all on sequences to anon, authen
 alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
 
 alter table public.courses          enable row level security;
+alter table public.course_teachers  enable row level security;
 alter table public.subject_teachers enable row level security;
 
 create policy courses_select on public.courses for select to authenticated using (true);
 create policy courses_write  on public.courses for all to authenticated
+  using (public.is_admin()) with check (public.is_admin());
+
+create policy ct_select on public.course_teachers for select to authenticated using (true);
+create policy ct_write  on public.course_teachers for all to authenticated
   using (public.is_admin()) with check (public.is_admin());
 
 create policy st_select on public.subject_teachers for select to authenticated using (true);

@@ -16,11 +16,11 @@ export default function AdminApp({ profile, onLogout, onChangePw }) {
   const [classFocus, setClassFocus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [store, setStore] = useState({
-    classes: [], courses: [], subjects: [], links: [], teachers: [], students: [], assignments: [], subs: [], creds: {}, settings: {},
+    classes: [], courses: [], subjects: [], links: [], coursePool: {}, teachers: [], students: [], assignments: [], subs: [], creds: {}, settings: {},
   });
 
   async function load() {
-    const [cls, subj, teach, stud, asg, subs, creds, sett, crs, lnk] = await Promise.all([
+    const [cls, subj, teach, stud, asg, subs, creds, sett, crs, lnk, cpool] = await Promise.all([
       supabase.from('classes').select('*').order('name'),
       supabase.from('subjects').select('*, class:classes(name,code)').order('name'),
       supabase.from('profiles').select('*').eq('role', 'teacher').order('full_name'),
@@ -31,12 +31,19 @@ export default function AdminApp({ profile, onLogout, onChangePw }) {
       supabase.from('settings').select('*'),
       supabase.from('courses').select('*').order('name'),
       supabase.from('subject_teachers').select('subject_id, teacher_id, is_lead'),
+      supabase.from('course_teachers').select('course_id, teacher_id'),
     ]);
 
     const credMap = {};
     (creds.data || []).forEach((c) => (credMap[c.user_id] = c.password_text));
     const setMap = {};
     (sett.data || []).forEach((s) => (setMap[s.key] = s.value));
+
+    // master subject ke teachers pool  { courseId: [teacherId] }
+    const coursePool = {};
+    (cpool.data || []).forEach((r) => {
+      (coursePool[r.course_id] = coursePool[r.course_id] || []).push(r.teacher_id);
+    });
 
     // har subject ke teachers (multiple) + lead teacher
     const bySub = {};
@@ -59,6 +66,7 @@ export default function AdminApp({ profile, onLogout, onChangePw }) {
       classes: cls.data || [],
       courses: crs.data || [],
       links: lnk.data || [],
+      coursePool,
       subjects,
       teachers: teach.data || [],
       students: stud.data || [],

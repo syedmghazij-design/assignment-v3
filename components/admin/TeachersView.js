@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
-import { createUsers, deleteUser, resetPassword, updateUser } from '@/lib/adminApi';
+import { createUsers, deleteUser, resetPassword, updateUser, upsertUser } from '@/lib/adminApi';
 import { Badge, Btn, Card, Empty, Field, Input, Modal } from '@/components/ui';
 
 export default function TeachersView({ store, reload }) {
@@ -15,6 +15,11 @@ export default function TeachersView({ store, reload }) {
   const [newPw, setNewPw] = useState('');
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ full_name: '', username: '', password: '', phone: '' });
+  const [poolSubs, setPoolSubs] = useState([]);   // master subjects jo ye teacher padha sakta hai
+
+  // is teacher ke master subjects (course ids)
+  const poolOfTeacher = (tid) =>
+    Object.keys(store.coursePool || {}).filter((cid) => (store.coursePool[cid] || []).includes(tid));
   const [assignT, setAssignT] = useState(null);
   const [selSubs, setSelSubs] = useState([]);
   const [assignQ, setAssignQ] = useState('');
@@ -30,12 +35,14 @@ export default function TeachersView({ store, reload }) {
   function startNew() {
     setEditing(null);
     setForm({ full_name: '', username: '', password: '', phone: '' });
+    setPoolSubs([]);
     setOpen(true);
   }
 
   function startEdit(t) {
     setEditing(t);
     setForm({ full_name: t.full_name || '', username: t.username || '', password: '', phone: t.phone || '' });
+    setPoolSubs(poolOfTeacher(t.id));
     setOpen(true);
   }
 
@@ -43,6 +50,8 @@ export default function TeachersView({ store, reload }) {
     if (!form.full_name.trim() || !form.username.trim()) return toast('Name aur login ID zaroori hai', 'err');
     setBusy(true);
     try {
+      let teacherId = editing?.id || null;
+
       if (editing) {
         if (form.password) await resetPassword(editing.id, form.password);
         const { error } = await supabase
@@ -50,22 +59,34 @@ export default function TeachersView({ store, reload }) {
           .update({ full_name: form.full_name.trim(), username: form.username.trim().toLowerCase(), phone: form.phone || null })
           .eq('id', editing.id);
         if (error) throw error;
-        toast('Teacher update ho gaya ✅');
       } else {
         if (form.password.length < 6) throw new Error('Password kam az kam 6 characters');
-        const res = await createUsers([
-          {
-            username: form.username.trim().toLowerCase(),
-            password: form.password,
-            role: 'teacher',
-            full_name: form.full_name.trim(),
-            phone: form.phone || null,
-          },
-        ]);
-        const r = res.results?.[0];
-        if (r && !r.ok) throw new Error(r.error);
-        toast('Teacher add ho gaya ✅');
+        const res = await upsertUser({
+          username: form.username.trim().toLowerCase(),
+          password: form.password,
+          role: 'teacher',
+          full_name: form.full_name.trim(),
+          phone: form.phone || null,
+        });
+        teacherId = res?.id || null;
       }
+
+      // subjects jo ye teacher padha sakta hai (master pool)
+      if (teacherId) {
+        try {
+          await supabase.from('course_teachers').delete().eq('teacher_id', teacherId);
+          if (poolSubs.length) {
+            const { error } = await supabase
+              .from('course_teachers')
+              .insert(poolSubs.map((cid) => ({ course_id: cid, teacher_id: teacherId })));
+            if (error) throw error;
+          }
+        } catch (e2) {
+          toast('Teacher save hua, magar subjects pool update nahi hua: ' + e2.message, 'warn');
+        }
+      }
+
+      toast(editing ? 'Teacher update ho gaya ✅' : 'Teacher add ho gaya ✅');
       setOpen(false);
       reload();
     } catch (e) {
@@ -201,6 +222,11 @@ export default function TeachersView({ store, reload }) {
                             <div className="muted" style={{ fontSize: 11.5, marginTop: 5 }}>
                               🏫 {Array.from(new Set(subs.map((s) => s.class?.name).filter(Boolean))).join(', ') || '—'}
                             </div>
+                            {poolOfTeacher(t.id).length > 0 && (
+                              <div className="muted" style={{ fontSize: 11, marginTop: 3 }}>
+                                🔖 {store.courses.filter((c) => poolOfTeacher(t.id).includes(c.id)).map((c) => c.name).join(', ')}
+                              </div>
+                            )}
                           </>
                         )}
                       </td>
@@ -234,6 +260,26 @@ export default function TeachersView({ store, reload }) {
           </Field>
           <Field label="Phone (optional)"><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
         </div>
+
+        <Field label={`Ye teacher kaun se subjects padha sakta hai? (${poolSubs.length} selected)`}
+          hint="Master subjects — class me subject assign karte waqt ye teachers khud aa jayenge">
+          {store.courses.length === 0 ? (
+            <div className="err">Pehle Subjects tab me master subjects add karein.</div>
+          ) : (
+            <div style={{ maxHeight: 200, overflow: 'auto', border: '1px solid var(--line)', borderRadius: 10, padding: 8 }}>
+              {store.courses.map((c) => (
+                <label key={c.id} className="between" style={{ padding: '6px 8px', borderRadius: 8, cursor: 'pointer' }}>
+                  <span className="row" style={{ gap: 8 }}>
+                    <input type="checkbox" checked={poolSubs.includes(c.id)}
+                      onChange={() => setPoolSubs(poolSubs.includes(c.id) ? poolSubs.filter((x) => x !== c.id) : [...poolSubs, c.id])} />
+                    <b style={{ fontSize: 13 }}>{c.name}</b>
+                    <span className="muted" style={{ fontSize: 11.5 }}>{c.code || ''}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
+        </Field>
       </Modal>
 
       <Modal open={!!assignT} onClose={() => setAssignT(null)} wide

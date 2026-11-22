@@ -148,7 +148,7 @@ Supabase → neeche **⚙ Project Settings** → **API**
 | # | Kahan | Kya karein |
 |---|---|---|
 | **1** | **Subjects** | Master list: `Programming Fundamentals`, `Calculus`… **ek hi baar** add karo |
-| **2** | **Teachers** | naam + login ID + password |
+| **2** | **Teachers** | naam + login ID + password + **ye kaun se subjects padha sakta hai (tick karo)** |
 | **3** | **Classes & Students** → + New class | `BS Computer Science` / `BSCS` / sections `A,B` |
 | **4** | Class card per **`Open →`** | Ab 5 tabs khulengi neeche wali |
 | **4b** | **Teachers** → **📚** | Subject ke andar us ki classes dikhengi — jis class me padhana hai tick karo |

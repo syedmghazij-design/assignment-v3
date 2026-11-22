@@ -91,6 +91,19 @@ export default function ClassesView({ store, reload, profile, focus }) {
   }
   const toggle = (arr, setArr, v) => setArr(arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
 
+  const poolOf = (courseId) => (store.coursePool || {})[courseId] || [];
+
+  // subject select karte hi us ke saare teachers apne aap tick ho jate hain
+  function toggleCourse(id) {
+    const next = pickCourses.includes(id) ? pickCourses.filter((x) => x !== id) : [...pickCourses, id];
+    setPickCourses(next);
+    if (!editSub) {
+      const set = new Set(pickTeachers);
+      next.forEach((cid) => poolOf(cid).forEach((tid) => set.add(tid)));
+      setPickTeachers(Array.from(set));
+    }
+  }
+
   async function saveAssign() {
     if (!openCls) return;
     if (!editSub && pickCourses.length === 0) return toast('Kam az kam ek subject select karein', 'err');
@@ -171,6 +184,9 @@ export default function ClassesView({ store, reload, profile, focus }) {
     const offerings = store.subjects.filter((s) => s.class_id === cls.id);
     const students = store.students.filter((s) => s.class_id === cls.id);
     const noTeacher = offerings.filter((s) => !(s.teacher_ids || []).length && !s.teacher_id);
+    const activePool = editSub
+      ? poolOf(editSub.course_id)
+      : Array.from(new Set(pickCourses.flatMap((cid) => poolOf(cid))));
     const asgCount = store.assignments.filter((a) => offerings.some((o) => o.id === a.subject_id)).length;
 
     return (
@@ -304,7 +320,7 @@ export default function ClassesView({ store, reload, profile, focus }) {
                     <label key={c.id} className="between"
                       style={{ padding: '6px 8px', borderRadius: 8, cursor: 'pointer', opacity: already ? 0.55 : 1 }}>
                       <span className="row" style={{ gap: 8 }}>
-                        <input type="checkbox" checked={pickCourses.includes(c.id)} onChange={() => toggle(pickCourses, setPickCourses, c.id)} />
+                        <input type="checkbox" checked={pickCourses.includes(c.id)} onChange={() => toggleCourse(c.id)} />
                         <b style={{ fontSize: 13 }}>{c.name}</b>
                         <span className="muted" style={{ fontSize: 11.5 }}>{c.code || ''}</span>
                       </span>
@@ -316,7 +332,8 @@ export default function ClassesView({ store, reload, profile, focus }) {
             </Field>
           )}
 
-          <Field label={`${editSub ? '1' : '2'}) Teachers (kai select kar sakte hain)`} hint="Ek subject ke 4 ya zyada teachers ho sakte hain">
+          <Field label={`${editSub ? '1' : '2'}) Teachers (kai select kar sakte hain)`}
+            hint="Jo teachers us subject ke liye pehle se tay hain wo khud tick ho jate hain — jo is class ko padhayega wo rakho, baqi hata do">
             {store.teachers.length === 0 ? (
               <div className="err">Koi teacher nahi — pehle Teachers tab me teacher add karein.</div>
             ) : (
@@ -328,7 +345,10 @@ export default function ClassesView({ store, reload, profile, focus }) {
                       <b style={{ fontSize: 13 }}>{t.full_name}</b>
                       <span className="muted" style={{ fontSize: 11.5 }}>{t.username}</span>
                     </span>
-                    {pickTeachers[0] === t.id && <Badge kind="accepted">lead</Badge>}
+                    <span className="row" style={{ gap: 4 }}>
+                      {activePool.includes(t.id) && <Badge kind="info">🔖 subject ka teacher</Badge>}
+                      {pickTeachers[0] === t.id && <Badge kind="accepted">lead</Badge>}
+                    </span>
                   </label>
                 ))}
               </div>

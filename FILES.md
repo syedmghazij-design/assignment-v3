@@ -34,6 +34,7 @@ gims-portal/
 |---|---|---|
 | **`1-SETUP-DATABASE.sql`** | **Poora database ek hi file me**: 10 tables, indexes, RLS policies, GRANTS, storage buckets, settings, `resolve_login`, `ensure_admin`, admin RPCs, `auth_tokens_guard`, `notify pgrst`. Aakhir me verify row deti hai. | **Naye Supabase project per SIRF EK BAAR.** Dobara chalana bhi safe hai — par **saara data delete** ho jata hai (`drop table`). |
 | `2-CHECK-DATABASE.sql` | Sirf **padhne wali** file — kuch badalti nahi. Batati hai: admin login theek hai? password sahi? 12 tables? 4 buckets? RLS policies? | Jab shak ho ke database theek hai ya nahi. Kabhi bhi chala sakte hain. |
+| **`4-MIGRATE-v2b.sql`** | `course_teachers` table — master subject ke teachers (pool). Purana data se khud bhar jata hai. Dobara chalana safe. |
 | **`3-MIGRATE-v2.sql`** | **Purane database ko v2 banati hai** — master subjects + multiple teachers + sections. **Data safe rehta hai** (kuch delete nahi hota). Dobara chalana bhi safe. | Jab pehle se data ho aur naye features chahiye. Naya project banaya to zaroorat nahi (1-SETUP me sab hai). |
 
 > ⚠️ `1-SETUP-DATABASE.sql` me `drop table` hai. Naya project = theek. Purane project per chalane se **data chala jayega**.
@@ -67,7 +68,7 @@ gims-portal/
 | `AdminApp.js` | Admin ka **dhancha**: sidebar, tabs, **Audit card**, aur **saara data ek saath load** (`store`: classes, courses, subjects, links, teachers, students, assignments, submissions, passwords, settings). Naya data chahiye to `load()` me query add karo. |
 | **`ClassesView.js`** | **⭐ HUB.** Class card → `Open →` → 5 tabs: **Overview · Subjects & Teachers · Students · Time Table · Attendance**. Subjects assign modal (subjects + teachers + sections) bhi yahin. Students ab isi ke andar se add hote hain. |
 | `SubjectsView.js` | **MASTER subject list** — `Programming Fundamentals` ek hi baar add hota hai. Har card per dikhta hai: kitni classes me hai, kaun se teachers padha rahe hain. |
-| `TeachersView.js` | Teachers list + **📚 button** → modal me **subject ke andar us ki classes** dikhti hain (`ProgFund → 🏫 BS CS`, `🏫 BS AI`) — jis class me padhana hai wo tick karo. Subject ke saare classes "sab select" ek click me. Multiple teachers support. Password show/reset/delete bhi. |
+| `TeachersView.js` | **Teacher add/edit form me hi "kaun se subjects padha sakta hai"** ka multi-select (master pool). Table me 🔖 pool subjects. **📚 button** → modal me **subject ke andar us ki classes** dikhti hain (`ProgFund → 🏫 BS CS`, `🏫 BS AI`) — jis class me padhana hai wo tick karo. Subject ke saare classes "sab select" ek click me. Multiple teachers support. Password show/reset/delete bhi. |
 | `StudentsView.js` | Students (Class → Students tab ke andar chalta hai, `fixedClass` ke saath): single add, **⚡ bulk add (400+)**, edit, reset password, delete, CSV export, subjects preview. Class pehle se locked hoti hai. |
 | `AttendanceView.js` | **OCR attendance**: sheet ki photo upload → text nikalo → students match karo → manual edit → save. Class ke andar `fixedClass` ke saath bhi chalta hai. |
 | `TimetableView.js` | **Class + section wise** timetable grid. Cell per click → subject/time/room → save. OCR se image import bhi. `fixedClass` ke saath class locked. |
