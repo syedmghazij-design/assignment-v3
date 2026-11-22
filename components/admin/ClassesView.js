@@ -1,25 +1,37 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { toast } from '@/lib/toast';
-import { Badge, Btn, Card, Empty, Field, Input, Modal, SectionTitle, Select } from '@/components/ui';
+import { Badge, Btn, Card, Empty, Field, Input, Modal, SectionTitle, Stat, Tabs } from '@/components/ui';
+import StudentsView from './StudentsView';
+import TimetableView from './TimetableView';
+import AttendanceView from './AttendanceView';
 
 const empty = { name: '', code: '', sections: 'A,B', session: '' };
 
-export default function ClassesView({ store, reload }) {
+export default function ClassesView({ store, reload, profile, focus }) {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(empty);
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const [openCls, setOpenCls] = useState(null); // class detail
+  const [openCls, setOpenCls] = useState(null);
+  const [tab, setTab] = useState('overview');
+
   const [assignOpen, setAssignOpen] = useState(false);
-  const [editSub, setEditSub] = useState(null); // offering being edited
+  const [editSub, setEditSub] = useState(null);
   const [pickCourses, setPickCourses] = useState([]);
   const [pickTeachers, setPickTeachers] = useState([]);
   const [pickSections, setPickSections] = useState([]);
   const [q, setQ] = useState('');
+
+  useEffect(() => {
+    if (focus) {
+      setOpenCls(focus);
+      setTab('overview');
+    }
+  }, [focus]);
 
   /* ---------------- class CRUD ---------------- */
   function startNew() {
@@ -60,7 +72,7 @@ export default function ClassesView({ store, reload }) {
     reload();
   }
 
-  /* ---------------- assign subjects ---------------- */
+  /* ---------------- subject assign ---------------- */
   function openAssignFor(cls) {
     setEditSub(null);
     setPickCourses([]);
@@ -84,18 +96,14 @@ export default function ClassesView({ store, reload }) {
     if (!editSub && pickCourses.length === 0) return toast('Kam az kam ek subject select karein', 'err');
     setBusy(true);
     try {
-      const targets = editSub ? [editSub] : [];
-
+      const targets = [];
       if (!editSub) {
         for (const courseId of pickCourses) {
           const course = store.courses.find((c) => c.id === courseId);
           if (!course) continue;
-          // pehle se is class me ye subject hai?
           const existing = store.subjects.find((s) => s.class_id === openCls.id && s.course_id === courseId);
-          if (existing) {
-            targets.push(existing);
-            continue;
-          }
+          if (existing) { targets.push(existing); continue; }
+          const allSecs = (openCls.sections || []);
           const { data, error } = await supabase
             .from('subjects')
             .insert({
@@ -105,7 +113,7 @@ export default function ClassesView({ store, reload }) {
               code: course.code || null,
               semester: course.semester || null,
               color: course.color || '#0f9d58',
-              sections: pickSections.length === (openCls.sections || []).length ? null : pickSections,
+              sections: pickSections.length === allSecs.length ? null : pickSections,
               teacher_id: pickTeachers[0] || null,
             })
             .select('*')
@@ -114,17 +122,18 @@ export default function ClassesView({ store, reload }) {
           targets.push(data);
         }
       } else {
+        const allSecs = (openCls.sections || []);
         const { error } = await supabase
           .from('subjects')
           .update({
-            sections: pickSections.length === (openCls.sections || []).length ? null : pickSections,
+            sections: pickSections.length === allSecs.length ? null : pickSections,
             teacher_id: pickTeachers[0] || null,
           })
           .eq('id', editSub.id);
         if (error) throw error;
+        targets.push(editSub);
       }
 
-      // teachers set karo (har target per)
       for (const sub of targets) {
         await supabase.from('subject_teachers').delete().eq('subject_id', sub.id);
         if (pickTeachers.length) {
@@ -156,11 +165,13 @@ export default function ClassesView({ store, reload }) {
     return s ? store.courses.filter((c) => c.name?.toLowerCase().includes(s) || String(c.code || '').toLowerCase().includes(s)) : store.courses;
   }, [store.courses, q]);
 
-  /* ================= DETAIL VIEW ================= */
+  /* ==================== CLASS WORKSPACE ==================== */
   if (openCls) {
     const cls = store.classes.find((c) => c.id === openCls.id) || openCls;
     const offerings = store.subjects.filter((s) => s.class_id === cls.id);
     const students = store.students.filter((s) => s.class_id === cls.id);
+    const noTeacher = offerings.filter((s) => !(s.teacher_ids || []).length && !s.teacher_id);
+    const asgCount = store.assignments.filter((a) => offerings.some((o) => o.id === a.subject_id)).length;
 
     return (
       <>
@@ -174,57 +185,104 @@ export default function ClassesView({ store, reload }) {
           </div>
           <div className="row">
             <Btn onClick={() => startEdit(cls)}>Edit class</Btn>
-            <Btn variant="primary" onClick={() => openAssignFor(cls)}>+ Subject assign karein</Btn>
+            <Btn variant="primary" onClick={() => { setTab('subjects'); openAssignFor(cls); }}>+ Subject assign</Btn>
           </div>
         </div>
 
-        <Card className="tight" style={{ marginBottom: 14 }}>
-          <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
-            <b style={{ fontSize: 13 }}>Sections:</b>
-            {(cls.sections || []).map((s) => {
-              const n = students.filter((x) => x.section === s).length;
-              return <Badge key={s} kind="gray">Section {s} · {n} students</Badge>;
-            })}
-          </div>
-        </Card>
+        <Tabs
+          active={tab}
+          onChange={setTab}
+          tabs={[
+            { key: 'overview', label: 'Overview' },
+            { key: 'subjects', label: 'Subjects & Teachers', count: offerings.length },
+            { key: 'students', label: 'Students', count: students.length },
+            { key: 'timetable', label: 'Time Table' },
+            { key: 'attendance', label: 'Attendance' },
+          ]}
+        />
 
-        <SectionTitle title="Is class ke subjects" sub="Har subject ke teachers aur sections — yahin se manage karein" />
+        <div style={{ marginTop: 16 }}>
+          {tab === 'overview' && (
+            <>
+              <div className="grid g4" style={{ marginBottom: 16 }}>
+                <Stat label="Students" value={students.length} hint={`${(cls.sections || []).length} section(s)`} />
+                <Stat label="Subjects" value={offerings.length} hint="is class me" />
+                <Stat label="Assignments" value={asgCount} hint="in subjects ki" />
+                <Stat label="Bina teacher" value={noTeacher.length} hint={noTeacher.length ? 'fix karein' : 'sab theek'} />
+              </div>
 
-        {offerings.length === 0 ? (
-          <Card>
-            <Empty icon="📚" text="Is class me koi subject nahi. '+ Subject assign karein' dabayen." />
-            <div style={{ textAlign: 'center', marginTop: 8 }}>
-              <Btn variant="primary" onClick={() => openAssignFor(cls)}>+ Subject assign karein</Btn>
-            </div>
-          </Card>
-        ) : (
-          <div className="stack">
-            {offerings.map((s) => {
-              const secs = s.sections && s.sections.length ? s.sections : (cls.sections || []);
-              return (
-                <Card key={s.id} className="tight">
-                  <div className="between">
-                    <div style={{ minWidth: 0 }}>
-                      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ width: 10, height: 10, borderRadius: 99, background: s.color || '#0f9d58' }} />
-                        <b style={{ fontSize: 15 }}>{s.name}</b>
-                        <span className="muted" style={{ fontSize: 12 }}>{s.code || ''}</span>
-                        {secs.map((x) => <Badge key={x} kind="info">Sec {x}</Badge>)}
-                      </div>
-                      <div className="muted" style={{ marginTop: 8, fontSize: 12.5 }}>
-                        👩‍🏫 {(s.teachers || []).map((t) => t.full_name).join(', ') || 'koi teacher assign nahi — Edit dabayen'}
-                      </div>
-                    </div>
-                    <div className="row" style={{ gap: 6 }}>
-                      <Btn size="sm" onClick={() => openEditOffering(s)}>Teachers / Sections</Btn>
-                      <Btn size="sm" variant="danger" onClick={() => removeOffering(s)}>Remove</Btn>
-                    </div>
+              <Card className="tight" style={{ marginBottom: 14 }}>
+                <SectionTitle title="Sections" sub="Har section ke students" />
+                <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                  {(cls.sections || []).map((s) => {
+                    const n = students.filter((x) => x.section === s).length;
+                    return (
+                      <button key={s} onClick={() => setTab('students')}
+                        style={{ padding: '10px 16px', borderRadius: 12, border: '1.5px solid var(--line)', background: '#fff', cursor: 'pointer', fontWeight: 700 }}>
+                        Section {s} <span className="muted" style={{ fontWeight: 500 }}>· {n}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+
+              {noTeacher.length > 0 && (
+                <Card className="tight" style={{ border: '1.5px solid var(--amber)' }}>
+                  <div style={{ fontSize: 13 }}>
+                    ⚠️ <b>{noTeacher.length} subject bina teacher</b> — {noTeacher.map((s) => s.name).join(', ')}
+                  </div>
+                  <div style={{ marginTop: 10 }}>
+                    <Btn size="sm" variant="primary" onClick={() => setTab('subjects')}>Subjects kholo →</Btn>
                   </div>
                 </Card>
-              );
-            })}
-          </div>
-        )}
+              )}
+            </>
+          )}
+
+          {tab === 'subjects' && (
+            <>
+              <div className="between" style={{ marginBottom: 12 }}>
+                <div style={{ fontWeight: 800, fontSize: 14 }}>Is class ke subjects</div>
+                <Btn variant="primary" onClick={() => openAssignFor(cls)}>+ Subject assign karein</Btn>
+              </div>
+
+              {offerings.length === 0 ? (
+                <Card><Empty icon="📚" text="Is class me koi subject nahi. '+ Subject assign karein' dabayen." /></Card>
+              ) : (
+                <div className="stack">
+                  {offerings.map((s) => {
+                    const secs = s.sections && s.sections.length ? s.sections : (cls.sections || []);
+                    return (
+                      <Card key={s.id} className="tight">
+                        <div className="between">
+                          <div style={{ minWidth: 0 }}>
+                            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                              <span style={{ width: 10, height: 10, borderRadius: 99, background: s.color || '#0f9d58' }} />
+                              <b style={{ fontSize: 15 }}>{s.name}</b>
+                              <span className="muted" style={{ fontSize: 12 }}>{s.code || ''}</span>
+                              {secs.map((x) => <Badge key={x} kind="info">Sec {x}</Badge>)}
+                            </div>
+                            <div className="muted" style={{ marginTop: 8, fontSize: 12.5 }}>
+                              👩‍🏫 {(s.teachers || []).map((t) => t.full_name).join(', ') || 'koi teacher assign nahi — Edit dabayen'}
+                            </div>
+                          </div>
+                          <div className="row" style={{ gap: 6 }}>
+                            <Btn size="sm" onClick={() => openEditOffering(s)}>Teachers / Sections</Btn>
+                            <Btn size="sm" variant="danger" onClick={() => removeOffering(s)}>Remove</Btn>
+                          </div>
+                        </div>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {tab === 'students' && <StudentsView store={store} reload={reload} fixedClass={cls} />}
+          {tab === 'timetable' && <TimetableView store={store} reload={reload} fixedClass={cls} />}
+          {tab === 'attendance' && <AttendanceView store={store} reload={reload} profile={profile} fixedClass={cls} />}
+        </div>
 
         {/* assign modal */}
         <Modal open={assignOpen} onClose={() => setAssignOpen(false)} wide
@@ -233,31 +291,29 @@ export default function ClassesView({ store, reload }) {
             <Btn variant="primary" onClick={saveAssign} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Btn></>}>
 
           {!editSub && (
-            <>
-              <Field label="1) Subjects select karein" hint="Master list se — ek saath kai select kar sakte hain">
-                <Input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 8 }} />
-                <div style={{ maxHeight: 220, overflow: 'auto', border: '1px solid var(--line)', borderRadius: 10, padding: 8 }}>
-                  {courseList.length === 0 ? (
-                    <div className="muted" style={{ fontSize: 12.5 }}>
-                      Koi subject nahi — pehle <b>Subjects</b> tab me add karein.
-                    </div>
-                  ) : courseList.map((c) => {
-                    const already = store.subjects.some((s) => s.class_id === cls.id && s.course_id === c.id);
-                    return (
-                      <label key={c.id} className="between"
-                        style={{ padding: '6px 8px', borderRadius: 8, cursor: 'pointer', opacity: already ? 0.55 : 1 }}>
-                        <span className="row" style={{ gap: 8 }}>
-                          <input type="checkbox" checked={pickCourses.includes(c.id)} onChange={() => toggle(pickCourses, setPickCourses, c.id)} />
-                          <b style={{ fontSize: 13 }}>{c.name}</b>
-                          <span className="muted" style={{ fontSize: 11.5 }}>{c.code || ''}</span>
-                        </span>
-                        {already && <Badge kind="gray">pehle se hai</Badge>}
-                      </label>
-                    );
-                  })}
-                </div>
-              </Field>
-            </>
+            <Field label="1) Subjects select karein" hint="Master list se — ek saath kai select kar sakte hain">
+              <Input placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} style={{ marginBottom: 8 }} />
+              <div style={{ maxHeight: 220, overflow: 'auto', border: '1px solid var(--line)', borderRadius: 10, padding: 8 }}>
+                {courseList.length === 0 ? (
+                  <div className="muted" style={{ fontSize: 12.5 }}>
+                    Koi subject nahi — pehle <b>Subjects</b> tab me add karein.
+                  </div>
+                ) : courseList.map((c) => {
+                  const already = store.subjects.some((s) => s.class_id === cls.id && s.course_id === c.id);
+                  return (
+                    <label key={c.id} className="between"
+                      style={{ padding: '6px 8px', borderRadius: 8, cursor: 'pointer', opacity: already ? 0.55 : 1 }}>
+                      <span className="row" style={{ gap: 8 }}>
+                        <input type="checkbox" checked={pickCourses.includes(c.id)} onChange={() => toggle(pickCourses, setPickCourses, c.id)} />
+                        <b style={{ fontSize: 13 }}>{c.name}</b>
+                        <span className="muted" style={{ fontSize: 11.5 }}>{c.code || ''}</span>
+                      </span>
+                      {already && <Badge kind="gray">pehle se hai</Badge>}
+                    </label>
+                  );
+                })}
+              </div>
+            </Field>
           )}
 
           <Field label={`${editSub ? '1' : '2'}) Teachers (kai select kar sakte hain)`} hint="Ek subject ke 4 ya zyada teachers ho sakte hain">
@@ -306,13 +362,13 @@ export default function ClassesView({ store, reload }) {
     );
   }
 
-  /* ================= GRID VIEW ================= */
+  /* ==================== GRID ==================== */
   return (
     <>
       <div className="topbar">
         <div>
           <h1>Classes</h1>
-          <div className="sub">Class kholein → us me subjects assign karein + teachers chunein</div>
+          <div className="sub">Class kholein → Students, Subjects, Time Table, Attendance — sab wahin</div>
         </div>
         <Btn variant="primary" onClick={startNew}>+ New class</Btn>
       </div>
@@ -332,12 +388,12 @@ export default function ClassesView({ store, reload }) {
                     <div style={{ fontWeight: 800, fontSize: 15.5 }}>{c.name}</div>
                     <div className="muted" style={{ fontSize: 12 }}>{c.code} {c.session ? `· ${c.session}` : ''}</div>
                   </div>
-                  <Badge kind="info">{students.length} students</Badge>
+                  <Badge kind="info">{students.length}</Badge>
                 </div>
 
                 <div className="row" style={{ marginTop: 12, gap: 6, flexWrap: 'wrap' }}>
                   {(c.sections || []).map((s) => (
-                    <Badge key={s} kind="gray">Section {s} · {students.filter((x) => x.section === s).length}</Badge>
+                    <Badge key={s} kind="gray">Sec {s} · {students.filter((x) => x.section === s).length}</Badge>
                   ))}
                 </div>
 
@@ -354,7 +410,7 @@ export default function ClassesView({ store, reload }) {
                 )}
 
                 <div className="row" style={{ marginTop: 14, gap: 6, flexWrap: 'wrap' }}>
-                  <Btn size="sm" variant="primary" onClick={() => setOpenCls(c)}>Open →</Btn>
+                  <Btn size="sm" variant="primary" onClick={() => { setOpenCls(c); setTab('overview'); }}>Open →</Btn>
                   <Btn size="sm" onClick={() => startEdit(c)}>Edit</Btn>
                   <Btn size="sm" variant="danger" onClick={() => remove(c)}>Delete</Btn>
                 </div>
@@ -374,7 +430,7 @@ export default function ClassesView({ store, reload }) {
           <Field label="Session"><Input value={form.session} onChange={(e) => setForm({ ...form, session: e.target.value })} placeholder="2026-2030" /></Field>
         </div>
         <Field label="Sections" hint="Comma se alag karein — A,B,C"><Input value={form.sections} onChange={(e) => setForm({ ...form, sections: e.target.value })} placeholder="A,B" /></Field>
-        <div className="hint">Class banane ke baad <b>Open →</b> dabao aur subjects assign karo.</div>
+        <div className="hint">Class banane ke baad <b>Open →</b> dabao — students, subjects, timetable sab wahin milenge.</div>
       </Modal>
     </>
   );

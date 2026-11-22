@@ -14,9 +14,11 @@ const STATUSES = [
   { key: 'leave', label: 'Lv', full: 'Leave' },
 ];
 
-export default function AttendanceView({ store, reload, profile }) {
-  const [classId, setClassId] = useState(store.classes[0]?.id || '');
-  const [section, setSection] = useState((store.classes[0]?.sections || ['A'])[0]);
+export default function AttendanceView({ store, reload, profile, fixedClass }) {
+  const [classId, setClassId] = useState(fixedClass?.id || store.classes[0]?.id || '');
+  const [section, setSection] = useState(
+    (fixedClass?.sections || store.classes[0]?.sections || ['A'])[0]
+  );
   const [subjectId, setSubjectId] = useState('');
   const [date, setDate] = useState(todayISO());
   const [statuses, setStatuses] = useState({});
@@ -175,11 +177,13 @@ export default function AttendanceView({ store, reload, profile }) {
 
       <Card style={{ marginBottom: 16 }}>
         <div className="grid g4">
-          <Field label="Class">
-            <Select value={classId} onChange={(e) => { setClassId(e.target.value); setSection((sectionsOf(e.target.value)[0] || 'A')); }}>
-              {store.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-          </Field>
+          {!fixedClass && (
+            <Field label="Class">
+              <Select value={classId} onChange={(e) => { setClassId(e.target.value); setSection((sectionsOf(e.target.value)[0] || 'A')); }}>
+                {store.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </Field>
+          )}
           <Field label="Section">
             <Select value={section} onChange={(e) => setSection(e.target.value)}>
               {sectionsOf(classId).map((s) => <option key={s} value={s}>Section {s}</option>)}

@@ -64,19 +64,19 @@ gims-portal/
 
 | File | Kya karta hai |
 |---|---|
-| `AdminApp.js` | Admin ka **dhancha**: sidebar, tabs, aur **saara data ek saath load** karta hai (`store`: classes, subjects, teachers, students, assignments, submissions, passwords, settings). Naya data chahiye to `load()` me query add karo. |
-| `ClassesView.js` | **Class cards → Open →** us class ke saare subjects, har subject ke **teachers + sections**, aur **+ Subject assign karein** (master list se multi-select + teachers multi-select + sections). Subject remove bhi yahin. |
+| `AdminApp.js` | Admin ka **dhancha**: sidebar, tabs, **Audit card**, aur **saara data ek saath load** (`store`: classes, courses, subjects, links, teachers, students, assignments, submissions, passwords, settings). Naya data chahiye to `load()` me query add karo. |
+| **`ClassesView.js`** | **⭐ HUB.** Class card → `Open →` → 5 tabs: **Overview · Subjects & Teachers · Students · Time Table · Attendance**. Subjects assign modal (subjects + teachers + sections) bhi yahin. Students ab isi ke andar se add hote hain. |
 | `SubjectsView.js` | **MASTER subject list** — `Programming Fundamentals` ek hi baar add hota hai. Har card per dikhta hai: kitni classes me hai, kaun se teachers padha rahe hain. |
 | `TeachersView.js` | Teachers list + **📚 Subjects button** → class-wise tick. Ab **multiple teachers** support (ek subject ke 4+ teachers). Password show/reset/delete bhi. |
-| `StudentsView.js` | Students: single add, **⚡ bulk add (400+)**, edit, reset password, delete, CSV export. Class/section select karte waqt **subjects ka preview** dikhta hai. |
-| `AttendanceView.js` | **OCR attendance**: sheet ki photo upload → text nikalo → students match karo → manual edit → save. |
-| `TimetableView.js` | **Class + section wise** timetable grid. Cell per click → subject/time/room → save. OCR se image import bhi. |
+| `StudentsView.js` | Students (Class → Students tab ke andar chalta hai, `fixedClass` ke saath): single add, **⚡ bulk add (400+)**, edit, reset password, delete, CSV export, subjects preview. Class pehle se locked hoti hai. |
+| `AttendanceView.js` | **OCR attendance**: sheet ki photo upload → text nikalo → students match karo → manual edit → save. Class ke andar `fixedClass` ke saath bhi chalta hai. |
+| `TimetableView.js` | **Class + section wise** timetable grid. Cell per click → subject/time/room → save. OCR se image import bhi. `fixedClass` ke saath class locked. |
 | `SettingsView.js` | Roll number pattern (`26-ARID-`), start number, university name, session, etc. |
 
 ### Teacher (`components/teacher/`)
 | File | Kya karta hai |
 |---|---|
-| `TeacherApp.js` | Poora teacher app: **My Classes → Class → Subject → ➕ Nayi assignment / 📥 Check karni hai**, To Review, Late Submissions, My Schedule, Profile. Multiple teachers support (`subject_teachers`). `NewAssignmentModal` aur `ReviewModal` bhi isi file me hain. |
+| `TeacherApp.js` | Poora teacher app. Login ke baad seedha **My Classes** (jo classes parhata hai). Class kholein → 3 tabs: **Assignments** (har subject ke saath ➕ Nayi assignment / 📥 Check), **To Review**, **Time Table**. Sidebar: To Review, Late Submissions, My Schedule, Profile. Multiple teachers support (`subject_teachers`). `NewAssignmentModal` aur `ReviewModal` bhi isi file me hain. |
 
 ### Student (`components/student/`)
 | File | Kya karta hai |

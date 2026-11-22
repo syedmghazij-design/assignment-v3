@@ -7,7 +7,7 @@ import { Badge, Btn, Card, Empty, Field, Input, Modal, Progress, SectionTitle, S
 import { DAYS_SHORT, fmtDate, fmtDateTime, initials, openFile, pct, safeName, timeLeft, uploadFile } from '@/lib/utils';
 
 export default function TeacherApp({ profile, onLogout, onChangePw }) {
-  const [tab, setTab] = useState('dashboard');
+  const [tab, setTab] = useState('classes');
   const [openClass, setOpenClass] = useState(null);
   const [checkSubject, setCheckSubject] = useState(null);
   const [openSubject, setOpenSubject] = useState(null);
@@ -79,7 +79,6 @@ export default function TeacherApp({ profile, onLogout, onChangePw }) {
   };
 
   const NAV = [
-    { key: 'dashboard', label: 'Dashboard', ico: '▦' },
     { key: 'classes', label: 'My Classes', ico: '🏫' },
     { key: 'pending', label: 'To Review', ico: '⏳' },
     { key: 'late', label: 'Late Submissions', ico: '⌛' },
@@ -132,8 +131,10 @@ export default function TeacherApp({ profile, onLogout, onChangePw }) {
                 timetable={d.timetable.filter((t) => t.class_id === openClass.id)}
                 onBack={() => go('classes')}
                 onOpenSubject={(s) => go('classes', openClass, s)}
-                onNew={(s) => setNewAsgFor({ subject_id: s.id })}
+                onNew={(s) => setNewAsgFor({ subject_id: s.id || '' })}
                 onCheck={(s) => { setCheckSubject(s); setOpenSubject(s); setTab('classes'); }}
+                onReview={setReview}
+                onOpenAssignment={(a) => go('classes', openClass, openSubject, a)}
               />
             )}
 
@@ -318,7 +319,14 @@ function MyClasses({ subjects, d, onOpen }) {
   return (
     <>
       <div className="topbar">
-        <div><h1>My Classes</h1><div className="sub">Aap jin classes ko parhate hain — class kholein phir subject chunein</div></div>
+        <div>
+          <h1>My Classes</h1>
+          <div className="sub">Aap in classes ko parhate hain — class kholein, assignments aur time table wahin milega</div>
+        </div>
+        <div className="row">
+          <Badge kind="info">{d.subjects.length} subject(s)</Badge>
+          <Badge kind="pending">{d.subs.filter((x) => x.status === 'pending').length} to review</Badge>
+        </div>
       </div>
 
       {classes.length === 0 ? (
@@ -357,81 +365,163 @@ function MyClasses({ subjects, d, onOpen }) {
 }
 
 /* ================================================================== */
-function ClassView({ cls, subjects, d, timetable, onBack, onOpenSubject, onNew, onCheck }) {
+function ClassView({ cls, subjects, d, timetable, onBack, onOpenSubject, onNew, onCheck, onReview, onOpenAssignment }) {
+  const [tab, setTab] = useState('assignments');
+
+  const subIds = subjects.map((x) => x.id);
+  const asgAll = d.assignments.filter((a) => subIds.includes(a.subject_id));
+  const rowsAll = d.subs.filter((x) => asgAll.some((a) => a.id === x.assignment_id));
+  const pending = rowsAll.filter((x) => x.status === 'pending');
+
   return (
     <>
       <div className="topbar">
         <div>
           <button className="btn-link" onClick={onBack}>← My classes</button>
           <h1 style={{ marginTop: 6 }}>{cls.name}</h1>
-          <div className="sub">{cls.code || '—'} · {subjects.length} subject(s) — har subject se assignment de sakte hain ya check kar sakte hain</div>
+          <div className="sub">
+            {cls.code || '—'} · {subjects.length} subject(s) · {asgAll.length} assignment(s) · {pending.length} to review
+          </div>
+        </div>
+        <div className="row">
+          {subjects.length === 1 && (
+            <Btn variant="primary" onClick={() => onNew(subjects[0])}>➕ Nayi assignment</Btn>
+          )}
         </div>
       </div>
 
-      {subjects.length === 0 ? (
-        <Card><Empty icon="📚" text="Is class me aap ka koi subject nahi." /></Card>
-      ) : (
-        <div className="stack">
-          {subjects.map((s) => {
-            const asg = d.assignments.filter((a) => a.subject_id === s.id);
-            const asgIds = asg.map((a) => a.id);
-            const rows = d.subs.filter((x) => asgIds.includes(x.assignment_id));
-            const pending = rows.filter((x) => x.status === 'pending').length;
-            const late = rows.filter((x) => x.is_late).length;
-            return (
-              <Card key={s.id} className="tight">
-                <div className="between">
-                  <div style={{ minWidth: 0 }}>
-                    <div className="row" style={{ gap: 8 }}>
-                      <span style={{ width: 10, height: 10, borderRadius: 99, background: s.color || '#0f9d58' }} />
-                      <b style={{ fontSize: 15.5 }}>{s.name}</b>
-                      <span className="muted" style={{ fontSize: 12 }}>{s.code || ''} {s.semester ? `· ${s.semester}` : ''}</span>
-                    </div>
-                    <div className="m" style={{ marginTop: 8, fontSize: 12.5, color: 'var(--ink-3)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                      <span><b>{asg.length}</b> assignment(s)</span>
-                      <span><b style={{ color: 'var(--amber)' }}>{pending}</b> to review</span>
-                      <span><b style={{ color: 'var(--red)' }}>{late}</b> late</span>
-                      <span><b>{rows.length}</b> total submissions</span>
-                    </div>
-                  </div>
-                  <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-                    <Btn variant="primary" onClick={() => onNew(s)}>➕ Nayi assignment</Btn>
-                    <Btn onClick={() => onCheck(s)}>📥 Check karni hai{pending ? ` (${pending})` : ''}</Btn>
-                    <Btn onClick={() => onOpenSubject(s)}>Open</Btn>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
+      <Tabs
+        active={tab}
+        onChange={setTab}
+        tabs={[
+          { key: 'assignments', label: 'Assignments', count: asgAll.length },
+          { key: 'review', label: 'To Review', count: pending.length },
+          { key: 'timetable', label: 'Time Table', count: timetable.length },
+        ]}
+      />
 
-      {timetable.length > 0 && (
-        <div style={{ marginTop: 22 }}>
-          <SectionTitle title="Is class ka time table" sub="Aap ke subjects ki classes" />
-          <Card className="tight" style={{ padding: 0 }}>
-            <div className="tbl-scroll">
-              <table className="tbl">
-                <thead><tr><th>Day</th><th>Slot</th><th>Subject</th><th>Section</th><th>Room</th></tr></thead>
-                <tbody>
-                  {timetable
-                    .slice()
-                    .sort((a, b) => String(a.day).localeCompare(String(b.day)) || String(a.slot).localeCompare(String(b.slot)))
-                    .map((t) => (
-                      <tr key={t.id}>
-                        <td><b>{t.day}</b></td>
-                        <td>{t.slot}</td>
-                        <td>{t.subject?.name || '—'}</td>
-                        <td>{t.section || '—'}</td>
-                        <td>{t.room || '—'}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+      <div style={{ marginTop: 16 }}>
+        {/* ---------------- ASSIGNMENTS ---------------- */}
+        {tab === 'assignments' && (
+          subjects.length === 0 ? (
+            <Card><Empty icon="📚" text="Is class me aap ka koi subject nahi." /></Card>
+          ) : (
+            <div className="stack">
+              {subjects.map((sub) => {
+                const list = d.assignments.filter((a) => a.subject_id === sub.id);
+                const ids = list.map((a) => a.id);
+                const rows = d.subs.filter((x) => ids.includes(x.assignment_id));
+                const pend = rows.filter((x) => x.status === 'pending').length;
+
+                return (
+                  <Card key={sub.id}>
+                    <div className="between" style={{ marginBottom: list.length ? 12 : 0 }}>
+                      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 99, background: sub.color || '#0f9d58' }} />
+                        <b style={{ fontSize: 15.5 }}>{sub.name}</b>
+                        <span className="muted" style={{ fontSize: 12 }}>{sub.code || ''}</span>
+                        {pend > 0 && <Badge kind="pending">{pend} to review</Badge>}
+                      </div>
+                      <div className="row" style={{ gap: 6 }}>
+                        <Btn size="sm" variant="primary" onClick={() => onNew(sub)}>➕ Nayi assignment</Btn>
+                        <Btn size="sm" onClick={() => onCheck(sub)}>📥 Check{pending ? ` (${pend})` : ''}</Btn>
+                      </div>
+                    </div>
+
+                    {list.length === 0 ? (
+                      <div className="muted" style={{ fontSize: 13 }}>
+                        Is subject me koi assignment nahi — <b>➕ Nayi assignment</b> dabayen.
+                      </div>
+                    ) : (
+                      <div className="tbl-scroll">
+                        <table className="tbl">
+                          <thead>
+                            <tr><th>Assignment</th><th>Deadline</th><th>Submissions</th><th>Status</th><th></th></tr>
+                          </thead>
+                          <tbody>
+                            {list.map((a) => {
+                              const mine = d.subs.filter((x) => x.assignment_id === a.id);
+                              const p = mine.filter((x) => x.status === 'pending').length;
+                              const acc = mine.filter((x) => x.status === 'accepted').length;
+                              const tl = timeLeft(a.deadline);
+                              return (
+                                <tr key={a.id}>
+                                  <td>
+                                    <b>{a.title}</b>
+                                    {a.file_path && (
+                                      <div><button className="btn-link" onClick={() => openFile('assignment-files', a.file_path)}>📎 file</button></div>
+                                    )}
+                                  </td>
+                                  <td style={{ whiteSpace: 'nowrap' }}>
+                                    {fmtDateTime(a.deadline)}
+                                    <div className="muted" style={{ fontSize: 11.5 }}>{tl.overdue ? 'deadline over' : tl.text}</div>
+                                  </td>
+                                  <td>
+                                    <b>{mine.length}</b>
+                                    <div className="muted" style={{ fontSize: 11.5 }}>
+                                      {acc} accepted · {p} pending
+                                    </div>
+                                  </td>
+                                  <td>
+                                    {tl.overdue ? <Badge kind="rejected">Closed</Badge> : <Badge kind="accepted">Open</Badge>}
+                                  </td>
+                                  <td>
+                                    <Btn size="sm" variant="primary" onClick={() => onOpenAssignment(a)}>Open</Btn>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
             </div>
-          </Card>
-        </div>
-      )}
+          )
+        )}
+
+        {/* ---------------- REVIEW ---------------- */}
+        {tab === 'review' && (
+          <SubmissionList
+            title="Is class ki submissions"
+            subtitle="Pending/accept/reject — review karein"
+            rows={rowsAll}
+            assignments={asgAll}
+            onReview={onReview}
+          />
+        )}
+
+        {/* ---------------- TIMETABLE ---------------- */}
+        {tab === 'timetable' && (
+          timetable.length === 0 ? (
+            <Card><Empty icon="◷" text="Is class ka koi time table slot nahi." /></Card>
+          ) : (
+            <Card className="tight" style={{ padding: 0 }}>
+              <div className="tbl-scroll">
+                <table className="tbl">
+                  <thead><tr><th>Day</th><th>Slot</th><th>Subject</th><th>Section</th><th>Room</th></tr></thead>
+                  <tbody>
+                    {timetable
+                      .slice()
+                      .sort((a, b) => String(a.day).localeCompare(String(b.day)) || String(a.slot).localeCompare(String(b.slot)))
+                      .map((t) => (
+                        <tr key={t.id}>
+                          <td><b>{t.day}</b></td>
+                          <td>{t.slot}</td>
+                          <td>{t.subject?.name || '—'}</td>
+                          <td>{t.section || '—'}</td>
+                          <td>{t.room || '—'}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )
+        )}
+      </div>
     </>
   );
 }

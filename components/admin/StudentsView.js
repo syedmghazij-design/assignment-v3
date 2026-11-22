@@ -6,7 +6,7 @@ import { toast } from '@/lib/toast';
 import { createUsers, deleteUser, resetPassword } from '@/lib/adminApi';
 import { Badge, Btn, Card, Empty, Field, Input, Modal, Progress, Select } from '@/components/ui';
 
-export default function StudentsView({ store, reload }) {
+export default function StudentsView({ store, reload, fixedClass }) {
   const prefix = store.settings?.roll_pattern?.prefix || '26-ARID-';
   const startNo = store.settings?.roll_pattern?.start || 4700;
 
@@ -30,7 +30,10 @@ export default function StudentsView({ store, reload }) {
   }, [store.students, prefix, startNo]);
 
   const [form, setForm] = useState({ full_name: '', roll_no: '', password: '', class_id: '', section: 'A', phone: '' });
-  const [bulk, setBulk] = useState({ class_id: '', section: 'A', from: 4701, to: 4710, password: '', useRollAsPw: true });
+  const [bulk, setBulk] = useState({
+    class_id: fixedClass?.id || '', section: (fixedClass?.sections || ['A'])[0],
+    from: 4701, to: 4710, password: '', useRollAsPw: true,
+  });
   const [progress, setProgress] = useState({ done: 0, total: 0, errors: [] });
 
   const sectionsOf = (classId) => store.classes.find((c) => c.id === classId)?.sections || ['A'];
@@ -39,7 +42,8 @@ export default function StudentsView({ store, reload }) {
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();
     return store.students.filter((st) => {
-      if (cls !== 'all' && st.class_id !== cls) return false;
+      if (fixedClass && st.class_id !== fixedClass.id) return false;
+      if (!fixedClass && cls !== 'all' && st.class_id !== cls) return false;
       if (sec !== 'all' && st.section !== sec) return false;
       if (!s) return true;
       return (
@@ -56,8 +60,8 @@ export default function StudentsView({ store, reload }) {
       full_name: '',
       roll_no: nextRoll,
       password: '',
-      class_id: store.classes[0]?.id || '',
-      section: (store.classes[0]?.sections || ['A'])[0],
+      class_id: fixedClass?.id || store.classes[0]?.id || '',
+      section: ((fixedClass?.sections || store.classes[0]?.sections) || ['A'])[0],
       phone: '',
     });
     setOpen(true);
@@ -229,13 +233,15 @@ export default function StudentsView({ store, reload }) {
       <Card className="tight" style={{ marginBottom: 14 }}>
         <div className="row">
           <Input placeholder="Search name / roll no…" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 240 }} />
-          <Select value={cls} onChange={(e) => { setCls(e.target.value); setSec('all'); }} style={{ width: 200 }}>
-            <option value="all">All classes</option>
-            {store.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </Select>
+          {!fixedClass && (
+            <Select value={cls} onChange={(e) => { setCls(e.target.value); setSec('all'); }} style={{ width: 200 }}>
+              <option value="all">All classes</option>
+              {store.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+          )}
           <Select value={sec} onChange={(e) => setSec(e.target.value)} style={{ width: 140 }}>
             <option value="all">All sections</option>
-            {(cls === 'all' ? [...new Set(store.classes.flatMap((c) => c.sections || ['A']))] : sectionsOf(cls)).map((s) => (
+            {(fixedClass ? (fixedClass.sections || ['A']) : cls === 'all' ? [...new Set(store.classes.flatMap((c) => c.sections || ['A']))] : sectionsOf(cls)).map((s) => (
               <option key={s} value={s}>Section {s}</option>
             ))}
           </Select>
@@ -296,12 +302,18 @@ export default function StudentsView({ store, reload }) {
           </Field>
         </div>
         <div className="grid g2">
-          <Field label="Class">
-            <Select value={form.class_id} onChange={(e) => setForm({ ...form, class_id: e.target.value, section: (sectionsOf(e.target.value)[0] || 'A') })}>
-              <option value="">— select —</option>
-              {store.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-          </Field>
+          {fixedClass ? (
+            <Field label="Class">
+              <Input value={fixedClass.name} disabled />
+            </Field>
+          ) : (
+            <Field label="Class">
+              <Select value={form.class_id} onChange={(e) => setForm({ ...form, class_id: e.target.value, section: (sectionsOf(e.target.value)[0] || 'A') })}>
+                <option value="">— select —</option>
+                {store.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </Field>
+          )}
           <Field label="Section">
             <Select value={form.section} onChange={(e) => setForm({ ...form, section: e.target.value })}>
               {(form.class_id ? sectionsOf(form.class_id) : ['A']).map((s) => <option key={s} value={s}>Section {s}</option>)}
@@ -332,12 +344,16 @@ export default function StudentsView({ store, reload }) {
           Total: <b>{Math.max(0, Number(bulk.to) - Number(bulk.from) + 1)}</b> students.
         </div>
         <div className="grid g2">
-          <Field label="Class">
-            <Select value={bulk.class_id} onChange={(e) => setBulk({ ...bulk, class_id: e.target.value, section: (sectionsOf(e.target.value)[0] || 'A') })}>
-              <option value="">— select —</option>
-              {store.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </Select>
-          </Field>
+          {fixedClass ? (
+            <Field label="Class"><Input value={fixedClass.name} disabled /></Field>
+          ) : (
+            <Field label="Class">
+              <Select value={bulk.class_id} onChange={(e) => setBulk({ ...bulk, class_id: e.target.value, section: (sectionsOf(e.target.value)[0] || 'A') })}>
+                <option value="">— select —</option>
+                {store.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </Select>
+            </Field>
+          )}
           <Field label="Section">
             <Select value={bulk.section} onChange={(e) => setBulk({ ...bulk, section: e.target.value })}>
               {(bulk.class_id ? sectionsOf(bulk.class_id) : ['A']).map((s) => <option key={s} value={s}>Section {s}</option>)}

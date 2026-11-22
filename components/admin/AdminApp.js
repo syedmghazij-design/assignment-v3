@@ -7,13 +7,13 @@ import { fmtDateTime, initials, pct } from '@/lib/utils';
 import ClassesView from './ClassesView';
 import SubjectsView from './SubjectsView';
 import TeachersView from './TeachersView';
-import StudentsView from './StudentsView';
 import AttendanceView from './AttendanceView';
 import TimetableView from './TimetableView';
 import SettingsView from './SettingsView';
 
 export default function AdminApp({ profile, onLogout, onChangePw }) {
   const [tab, setTab] = useState('dashboard');
+  const [classFocus, setClassFocus] = useState(null);
   const [loading, setLoading] = useState(true);
   const [store, setStore] = useState({
     classes: [], courses: [], subjects: [], links: [], teachers: [], students: [], assignments: [], subs: [], creds: {}, settings: {},
@@ -92,9 +92,8 @@ export default function AdminApp({ profile, onLogout, onChangePw }) {
 
   const NAV = [
     { key: 'dashboard', label: 'Dashboard', ico: '▦' },
-    { key: 'students', label: 'Students', ico: '👥' },
     { key: 'teachers', label: 'Teachers', ico: '🎓' },
-    { key: 'classes', label: 'Classes', ico: '🏫' },
+    { key: 'classes', label: 'Classes & Students', ico: '🏫' },
     { key: 'subjects', label: 'Subjects', ico: '📚' },
     { key: 'attendance', label: 'Attendance (OCR)', ico: '🖼' },
     { key: 'timetable', label: 'Time Table', ico: '◷' },
@@ -129,10 +128,11 @@ export default function AdminApp({ profile, onLogout, onChangePw }) {
       <main className="main">
         {loading ? <Spinner /> : (
           <>
-            {tab === 'dashboard' && <Dashboard stats={stats} store={store} go={setTab} />}
-            {tab === 'students' && <StudentsView store={store} reload={load} />}
+            {tab === 'dashboard' && (
+              <Dashboard stats={stats} store={store} go={setTab} onOpenClass={(c) => { setClassFocus(c); setTab('classes'); }} />
+            )}
             {tab === 'teachers' && <TeachersView store={store} reload={load} />}
-            {tab === 'classes' && <ClassesView store={store} reload={load} />}
+            {tab === 'classes' && <ClassesView store={store} reload={load} profile={profile} focus={classFocus} />}
             {tab === 'subjects' && <SubjectsView store={store} reload={load} />}
             {tab === 'attendance' && <AttendanceView store={store} reload={load} profile={profile} />}
             {tab === 'timetable' && <TimetableView store={store} reload={load} />}
@@ -160,8 +160,8 @@ function AuditCard({ store, go }) {
     { n: noTeacher.length, txt: 'subject bina teacher — classes me assign karein', tab: 'classes', tone: 'var(--amber)' },
     { n: emptyClasses.length, txt: 'class bina kisi subject ke', tab: 'classes', tone: 'var(--amber)' },
     { n: idleTeachers.length, txt: 'teacher ko koi subject assign nahi', tab: 'teachers', tone: 'var(--ink-3)' },
-    { n: noClassStudent.length, txt: 'student bina class', tab: 'students', tone: 'var(--red)' },
-    { n: noRoll.length, txt: 'student bina roll number', tab: 'students', tone: 'var(--red)' },
+    { n: noClassStudent.length, txt: 'student bina class', tab: 'classes', tone: 'var(--red)' },
+    { n: noRoll.length, txt: 'student bina roll number', tab: 'classes', tone: 'var(--red)' },
   ].filter((r) => r.n > 0);
 
   return (
@@ -188,7 +188,7 @@ function AuditCard({ store, go }) {
 }
 
 /* ================================================================== */
-function Dashboard({ stats, store, go }) {
+function Dashboard({ stats, store, go, onOpenClass }) {
   const recent = store.subs.slice(0, 8);
   const perClass = store.classes.map((c) => ({
     name: c.code || c.name,
@@ -220,19 +220,63 @@ function Dashboard({ stats, store, go }) {
           <div className="sub">{store.settings?.institution?.name || 'Your institution'} · poora control yahan se</div>
         </div>
         <div className="row">
-          <Btn onClick={() => go('students')}>+ Student</Btn>
+          <Btn onClick={() => go('classes')}>+ Student (class ke andar)</Btn>
           <Btn variant="primary" onClick={() => go('attendance')}>Upload attendance</Btn>
         </div>
       </div>
 
       <div className="grid g4" style={{ marginBottom: 16 }}>
-        <Stat label="Students" value={stats.students} hint="Total enrolled" onClick={() => go('students')} />
+        <Stat label="Students" value={stats.students} hint="Total enrolled" onClick={() => go('classes')} />
         <Stat label="Teachers" value={stats.teachers} hint="Faculty" onClick={() => go('teachers')} />
         <Stat label="Classes" value={stats.classes} hint={`${stats.subjects} subjects`} onClick={() => go('classes')} />
         <Stat label="Assignments" value={stats.assignments} hint={`${stats.subs} submissions`} onClick={() => go('subjects')} />
       </div>
 
       <AuditCard store={store} go={go} />
+
+      <SectionTitle
+        title="Classes"
+        sub="Class kholo — students, subjects, timetable, attendance sab wahin se"
+        right={<Btn size="sm" onClick={() => go('classes')}>All classes</Btn>}
+      />
+      {store.classes.length === 0 ? (
+        <Card style={{ marginBottom: 16 }}>
+          <Empty icon="🏫" text="Koi class nahi. Classes tab se pehli class banayen." />
+          <div style={{ textAlign: 'center', marginTop: 8 }}>
+            <Btn variant="primary" onClick={() => go('classes')}>+ New class</Btn>
+          </div>
+        </Card>
+      ) : (
+        <div className="grid g3" style={{ marginBottom: 16 }}>
+          {store.classes.map((c) => {
+            const st = store.students.filter((x) => x.class_id === c.id);
+            const sj = store.subjects.filter((x) => x.class_id === c.id);
+            const noT = sj.filter((x) => !(x.teacher_ids || []).length && !x.teacher_id).length;
+            return (
+              <Card key={c.id}>
+                <div className="between">
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 15 }}>{c.name}</div>
+                    <div className="muted" style={{ fontSize: 12 }}>{c.code}</div>
+                  </div>
+                  <Badge kind="info">{st.length} students</Badge>
+                </div>
+                <div className="row" style={{ marginTop: 10, gap: 6, flexWrap: 'wrap' }}>
+                  {(c.sections || []).map((x) => (
+                    <Badge key={x} kind="gray">Sec {x} · {st.filter((y) => y.section === x).length}</Badge>
+                  ))}
+                </div>
+                <div className="muted" style={{ marginTop: 8, fontSize: 12 }}>
+                  {sj.length} subject(s){noT > 0 ? ` · ${noT} bina teacher` : ''}
+                </div>
+                <div style={{ marginTop: 12 }}>
+                  <Btn size="sm" variant="primary" onClick={() => onOpenClass(c)}>Open class →</Btn>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
 
 
       <div className="grid g3" style={{ marginBottom: 16 }}>

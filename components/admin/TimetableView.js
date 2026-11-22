@@ -16,9 +16,11 @@ const SLOTS = [
   { slot: 6, start: '15:20', end: '16:40' },
 ];
 
-export default function TimetableView({ store, reload }) {
-  const [classId, setClassId] = useState(store.classes[0]?.id || '');
-  const [section, setSection] = useState((store.classes[0]?.sections || ['A'])[0]);
+export default function TimetableView({ store, reload, fixedClass }) {
+  const [classId, setClassId] = useState(fixedClass?.id || store.classes[0]?.id || '');
+  const [section, setSection] = useState(
+    (fixedClass?.sections || store.classes[0]?.sections || ['A'])[0]
+  );
   const [rows, setRows] = useState([]);
   const [editing, setEditing] = useState(null); // {day, slot}
   const [ocrOpen, setOcrOpen] = useState(false);
@@ -147,9 +149,11 @@ export default function TimetableView({ store, reload }) {
       <div className="topbar">
         <div><h1>Time Table</h1><div className="sub">Button dabayen aur slot set karein — ya image se OCR karein</div></div>
         <div className="row">
-          <Select value={classId} onChange={(e) => { setClassId(e.target.value); setSection(sectionsOf(e.target.value)[0] || 'A'); }} style={{ width: 190 }}>
-            {store.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </Select>
+          {!fixedClass && (
+            <Select value={classId} onChange={(e) => { setClassId(e.target.value); setSection(sectionsOf(e.target.value)[0] || 'A'); }} style={{ width: 190 }}>
+              {store.classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </Select>
+          )}
           <Select value={section} onChange={(e) => setSection(e.target.value)} style={{ width: 130 }}>
             {sectionsOf(classId).map((s) => <option key={s} value={s}>Section {s}</option>)}
           </Select>

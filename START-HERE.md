@@ -141,46 +141,57 @@ Supabase → neeche **⚙ Project Settings** → **API**
 
 ---
 
-# STEP 5 — Portal bharna (isi order me) ⚠️
+# STEP 5 — Portal bharna (class ke andar, step by step) ⚠️
 
-> **Order badalna nahi** — har step agle ke liye zaroori hai.
+> **Sab kuch class ke andar hai.** Har cheez linked — koi alag/thali hui cheez nahi.
 
 | # | Kahan | Kya karein |
 |---|---|---|
-| **1** | **Subjects** | Master list: `Programming Fundamentals`, `Calculus`… — **ek hi baar** add karo |
+| **1** | **Subjects** | Master list: `Programming Fundamentals`, `Calculus`… **ek hi baar** add karo |
 | **2** | **Teachers** | naam + login ID + password |
-| **3** | **Classes** → + New class | `BS Computer Science` / `BSCS` / sections `A,B` / session |
-| **4** | **Classes** → **Open →** | **+ Subject assign karein** → subjects tick karo → **teachers tick karo** → sections tick karo → Save |
-| **5** | **Students** → + New / ⚡ Bulk | class + section select → subjects khud dikh jayenge |
-| **6** | **Time Table** | class + **section** → box per click → subject/time/room → Save |
-| **7** | **Attendance** | class + section → sheet ki photo → OCR → check → Save |
+| **3** | **Classes & Students** → + New class | `BS Computer Science` / `BSCS` / sections `A,B` |
+| **4** | Class card per **`Open →`** | Ab 5 tabs khulengi neeche wali |
 
-> 💡 **Same subject kai classes me?** Bas har class me jaa kar wahi subject tick kar do — master list me dobara add karne ki zaroorat nahi.
-> 💡 **Ek subject ke 4 teachers?** Assign karte waqt chaar ke chaar tick kar do. Pehla **lead** banega.
+### Class ke andar 5 tabs
 
-### Cheezein khud jud jati hain
-- **Student ke subjects** = us ki class ke subjects (sirf us ke section wale)
-- **Teacher ki classes** = jahan us ke subjects assign hain
-- **Time table** = class **+ section** ka alag
+| Tab | Kya karein |
+|---|---|
+| **Overview** | students, subjects, assignments ka khulasa + jo adhoora hai |
+| **Subjects & Teachers** | `+ Subject assign` → subjects tick → **teachers tick** (4+ bhi) → sections tick → Save |
+| **Students** | `+ New student` ya `⚡ Bulk add` — **class aur section pehle se set** |
+| **Time Table** | is class + section ka time table (class pehle se selected) |
+| **Attendance** | is class ka OCR attendance |
+
+> 💡 Students kahin aur se add nahi hote — **sirf class ke andar** se. Is liye koi student adhoora/bina-class nahi reh sakta.
+
+### Phir
+| # | Kahan | Kya |
+|---|---|---|
+| **5** | Class → **Students** | bulk add (roll numbers) |
+| **6** | Class → **Time Table** | slot per click → subject/time/room |
+| **7** | Class → **Attendance** | photo upload → OCR → check → Save |
 
 ---
 
-## 👩‍🏫 Teacher ka flow
+## 🩺 Dashboard — sab ek nazar me
 
+- **Audit card** — jo adhoora hai (bina teacher subject, bina class student…) — click karke seedha fix
+- **Classes grid** — har class card se `Open class →` → wahi 5 tabs
+
+## 👩‍🏫 Teacher ka flow (login ke baad seedha)
 ```
-My Classes → class kholein → subject ke saamne:
-      ➕ Nayi assignment deni hai
-      📥 Check karni hai (3)
+My Classes  ← kiss kiss class ko parhata hai, turant samne
+   └─ class kholein → 3 tabs
+        Assignments  → har subject ke saamne  ➕ Nayi assignment  |  📥 Check
+        To Review    → is class ki submissions
+        Time Table   → is class ka time table
 ```
+Sidebar: To Review · Late Submissions · My Schedule · Profile
 
 ## 👨‍🎓 Student ka flow
 ```
 Subjects → subject → assignment → file upload
 ```
-
-## 🩺 Admin Dashboard per "Audit" card
-Rozana ek nazar — batata hai kya adhoora hai:
-`subject bina teacher` · `class bina subject` · `student bina class` · `teacher ko subject nahi`
 
 ---
 
