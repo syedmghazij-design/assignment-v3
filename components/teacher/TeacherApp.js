@@ -420,6 +420,9 @@ function ClassView({ cls, subjects, d, timetable, onBack, onOpenSubject, onNew, 
                         <span style={{ width: 10, height: 10, borderRadius: 99, background: sub.color || '#0f9d58' }} />
                         <b style={{ fontSize: 15.5 }}>{sub.name}</b>
                         <span className="muted" style={{ fontSize: 12 }}>{sub.code || ''}</span>
+                        {(sub.sections && sub.sections.length ? sub.sections : []).map((x) => (
+                          <Badge key={x} kind="info">Sec {x}</Badge>
+                        ))}
                         {pend > 0 && <Badge kind="pending">{pend} to review</Badge>}
                       </div>
                       <div className="row" style={{ gap: 6 }}>

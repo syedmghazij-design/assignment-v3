@@ -67,7 +67,7 @@ gims-portal/
 | `AdminApp.js` | Admin ka **dhancha**: sidebar, tabs, **Audit card**, aur **saara data ek saath load** (`store`: classes, courses, subjects, links, teachers, students, assignments, submissions, passwords, settings). Naya data chahiye to `load()` me query add karo. |
 | **`ClassesView.js`** | **⭐ HUB.** Class card → `Open →` → 5 tabs: **Overview · Subjects & Teachers · Students · Time Table · Attendance**. Subjects assign modal (subjects + teachers + sections) bhi yahin. Students ab isi ke andar se add hote hain. |
 | `SubjectsView.js` | **MASTER subject list** — `Programming Fundamentals` ek hi baar add hota hai. Har card per dikhta hai: kitni classes me hai, kaun se teachers padha rahe hain. |
-| `TeachersView.js` | Teachers list + **📚 Subjects button** → class-wise tick. Ab **multiple teachers** support (ek subject ke 4+ teachers). Password show/reset/delete bhi. |
+| `TeachersView.js` | Teachers list + **📚 button** → modal me **subject ke andar us ki classes** dikhti hain (`ProgFund → 🏫 BS CS`, `🏫 BS AI`) — jis class me padhana hai wo tick karo. Subject ke saare classes "sab select" ek click me. Multiple teachers support. Password show/reset/delete bhi. |
 | `StudentsView.js` | Students (Class → Students tab ke andar chalta hai, `fixedClass` ke saath): single add, **⚡ bulk add (400+)**, edit, reset password, delete, CSV export, subjects preview. Class pehle se locked hoti hai. |
 | `AttendanceView.js` | **OCR attendance**: sheet ki photo upload → text nikalo → students match karo → manual edit → save. Class ke andar `fixedClass` ke saath bhi chalta hai. |
 | `TimetableView.js` | **Class + section wise** timetable grid. Cell per click → subject/time/room → save. OCR se image import bhi. `fixedClass` ke saath class locked. |

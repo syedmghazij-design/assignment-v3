@@ -151,6 +151,7 @@ Supabase → neeche **⚙ Project Settings** → **API**
 | **2** | **Teachers** | naam + login ID + password |
 | **3** | **Classes & Students** → + New class | `BS Computer Science` / `BSCS` / sections `A,B` |
 | **4** | Class card per **`Open →`** | Ab 5 tabs khulengi neeche wali |
+| **4b** | **Teachers** → **📚** | Subject ke andar us ki classes dikhengi — jis class me padhana hai tick karo |
 
 ### Class ke andar 5 tabs
 

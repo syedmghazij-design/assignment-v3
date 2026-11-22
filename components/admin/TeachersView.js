@@ -17,6 +17,7 @@ export default function TeachersView({ store, reload }) {
   const [form, setForm] = useState({ full_name: '', username: '', password: '', phone: '' });
   const [assignT, setAssignT] = useState(null);
   const [selSubs, setSelSubs] = useState([]);
+  const [assignQ, setAssignQ] = useState('');
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -74,6 +75,7 @@ export default function TeachersView({ store, reload }) {
   }
 
   function openAssign(t) {
+    setAssignQ('');
     setAssignT(t);
     setSelSubs(store.subjects.filter((x) => (x.teacher_ids || []).includes(t.id) || x.teacher_id === t.id).map((x) => x.id));
   }
@@ -150,6 +152,17 @@ export default function TeachersView({ store, reload }) {
     setBusy(false);
   }
 
+  // subject (master) ke andar us ki classes
+  const groupedCourses = store.courses
+    .map((course) => ({ course, offerings: store.subjects.filter((x) => x.course_id === course.id) }))
+    .filter((g) => g.offerings.length > 0)
+    .filter((g) => {
+      const q2 = assignQ.trim().toLowerCase();
+      if (!q2) return true;
+      return g.course.name.toLowerCase().includes(q2)
+        || g.offerings.some((o) => (o.class?.name || '').toLowerCase().includes(q2));
+    });
+
   return (
     <>
       <div className="topbar">
@@ -224,47 +237,70 @@ export default function TeachersView({ store, reload }) {
       </Modal>
 
       <Modal open={!!assignT} onClose={() => setAssignT(null)} wide
-        title={`Subjects assign karein — ${assignT?.full_name || ''}`}
-        footer={<><Btn onClick={() => setAssignT(null)}>Cancel</Btn><Btn variant="primary" onClick={saveAssign} disabled={busy}>{busy ? 'Saving…' : `Save (${selSubs.length} selected)`}</Btn></>}>
+        title={`${assignT?.full_name || ''} — kaun se subject, kis class me`}
+        footer={<><Btn onClick={() => setAssignT(null)}>Cancel</Btn>
+          <Btn variant="primary" onClick={saveAssign} disabled={busy}>{busy ? 'Saving…' : `Save (${selSubs.length} class-subject)`}</Btn></>}>
+
         <div className="hint" style={{ marginBottom: 12 }}>
-          Jis subject per tick lagayenge wo is teacher ko assign ho jaega — aur us ki class bhi khud aa jayegi.
-          Aap ek teacher ko <b>kai classes ke kai subjects</b> de sakte hain.
+          Har line = <b>ek subject + ek class</b>. Tick karo to ye teacher <b>us class</b> me wo subject padhayega.
+          Ek subject kai classes me hai to <b>jitni classes chahiye utni tick</b> karo.
         </div>
-        {store.subjects.length === 0 ? (
-          <div className="err">Pehle Admin → Subjects me subjects banayen (class ke saath).</div>
-        ) : (
-          store.classes.map((c) => {
-            const list = store.subjects.filter((x) => x.class_id === c.id);
-            if (!list.length) return null;
-            return (
-              <div key={c.id} style={{ marginBottom: 14 }}>
-                <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 6, color: 'var(--green-800)' }}>
-                  🏫 {c.name} <span className="muted" style={{ fontWeight: 500 }}>{c.code}</span>
+
+        <Input placeholder="Subject ya class search karein…" value={assignQ}
+          onChange={(e) => setAssignQ(e.target.value)} style={{ marginBottom: 12 }} />
+
+        {groupedCourses.length === 0 ? (
+          <div className="err">Koi subject nahi — pehle <b>Subjects</b> tab me master subject add karein, phir <b>Classes</b> me assign karein.</div>
+        ) : groupedCourses.map(({ course, offerings }) => {
+          const allOn = offerings.every((o) => selSubs.includes(o.id));
+          return (
+            <div key={course.id} style={{ marginBottom: 14, border: '1px solid var(--line)', borderRadius: 12, overflow: 'hidden' }}>
+              <div className="between" style={{ padding: '9px 12px', background: 'var(--green-50)', borderBottom: '1px solid var(--line)' }}>
+                <div className="row" style={{ gap: 8 }}>
+                  <span style={{ width: 10, height: 10, borderRadius: 99, background: course.color || '#0f9d58' }} />
+                  <b style={{ fontSize: 13.5 }}>{course.name}</b>
+                  <span className="muted" style={{ fontSize: 11.5 }}>{course.code || ''}</span>
                 </div>
-                {list.map((x) => {
-                  const mine = (x.teacher_ids || []).includes(assignT?.id) || x.teacher_id === assignT?.id;
-                  const other = !mine && ((x.teacher_ids || []).length > 0 || !!x.teacher_id);
-                  return (
-                    <label key={x.id} className="between"
-                      style={{ padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 10, marginBottom: 6, cursor: 'pointer', background: selSubs.includes(x.id) ? 'var(--green-50)' : '#fff' }}>
-                      <span className="row" style={{ gap: 8 }}>
-                        <input type="checkbox" checked={selSubs.includes(x.id)} onChange={() => toggleSub(x.id)} />
-                        <b style={{ fontSize: 13 }}>{x.name}</b>
-                        <span className="muted" style={{ fontSize: 11.5 }}>{x.code || ''}</span>
-                      </span>
-                      <span style={{ fontSize: 11.5 }}>
-                        {mine ? <Badge kind="accepted">assa hai</Badge>
-                          : other ? <span className="muted">abhi: {x.teacher?.full_name || 'kisi aur'}</span>
-                          : <span className="muted">koi teacher nahi</span>}
-                      </span>
-                    </label>
-                  );
-                })}
+                <button className="btn-link" style={{ fontSize: 12 }}
+                  onClick={() => setSelSubs((cur) => {
+                    const ids = offerings.map((o) => o.id);
+                    return allOn ? cur.filter((x) => !ids.includes(x)) : Array.from(new Set([...cur, ...ids]));
+                  })}>
+                  {allOn ? 'sab hatao' : 'sab classes select karo'}
+                </button>
               </div>
-            );
-          })
-        )}
-        <div className="hint">Tick hatane se subject “no teacher” ho jaega (delete nahi hota).</div>
+
+              {offerings.map((o) => {
+                const mine = (o.teacher_ids || []).includes(assignT?.id) || o.teacher_id === assignT?.id;
+                const others = (o.teachers || []).filter((t) => t.id !== assignT?.id).map((t) => t.full_name);
+                const secs = o.sections && o.sections.length ? o.sections : (store.classes.find((c) => c.id === o.class_id)?.sections || []);
+                const on = selSubs.includes(o.id);
+                return (
+                  <label key={o.id} className="between"
+                    style={{ padding: '8px 12px', cursor: 'pointer', borderTop: '1px solid #f0f4f1',
+                      background: on ? '#f7fdf9' : '#fff' }}>
+                    <span className="row" style={{ gap: 9 }}>
+                      <input type="checkbox" checked={on} onChange={() => toggleSub(o.id)} />
+                      <span>
+                        <b style={{ fontSize: 13 }}>🏫 {o.class?.name || '—'}</b>
+                        <span className="muted" style={{ fontSize: 11.5, marginLeft: 6 }}>
+                          {secs.length ? `Section ${secs.join(', ')}` : 'sab sections'}
+                        </span>
+                      </span>
+                    </span>
+                    <span style={{ fontSize: 11.5 }}>
+                      {mine ? <Badge kind="accepted">ye teacher padhata hai</Badge>
+                        : others.length ? <span className="muted">abhi: {others.join(', ')}</span>
+                        : <span className="muted">koi teacher nahi</span>}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          );
+        })}
+
+        <div className="hint">Tick hatane se teacher us class ka wo subject nahi padhayega (subject delete nahi hota).</div>
       </Modal>
 
       <Modal open={!!pwUser} onClose={() => setPwUser(null)} title={`Reset password — ${pwUser?.full_name || ''}`}

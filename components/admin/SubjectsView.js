@@ -15,6 +15,7 @@ export default function SubjectsView({ store, reload }) {
   const [editing, setEditing] = useState(null);
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState('');
+  const [mapCourse, setMapCourse] = useState(null);
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -140,7 +141,8 @@ export default function SubjectsView({ store, reload }) {
                   </div>
                 )}
 
-                <div className="row" style={{ marginTop: 14 }}>
+                <div className="row" style={{ marginTop: 14, gap: 6, flexWrap: 'wrap' }}>
+                  <Btn size="sm" variant="primary" onClick={() => setMapCourse(c)}>Kaun kis class me? →</Btn>
                   <Btn size="sm" onClick={() => startEdit(c)}>Edit</Btn>
                   <Btn size="sm" variant="danger" onClick={() => remove(c)}>Delete</Btn>
                 </div>
@@ -149,6 +151,47 @@ export default function SubjectsView({ store, reload }) {
           })}
         </div>
       )}
+
+      <Modal open={!!mapCourse} onClose={() => setMapCourse(null)} wide
+        title={`${mapCourse?.name || ''} — kaun si class, kaun sa teacher`}
+        footer={<Btn onClick={() => setMapCourse(null)}>Close</Btn>}>
+        {(() => {
+          const offers = store.subjects.filter((x) => x.course_id === mapCourse?.id);
+          if (!offers.length) return <div className="err">Ye subject abhi kisi class me assign nahi — Classes → Open → + Subject assign karein.</div>;
+          return (
+            <div className="tbl-scroll">
+              <table className="tbl">
+                <thead>
+                  <tr><th>Class</th><th>Sections</th><th>Teachers</th></tr>
+                </thead>
+                <tbody>
+                  {offers.map((o) => {
+                    const cls = store.classes.find((c) => c.id === o.class_id);
+                    const secs = o.sections && o.sections.length ? o.sections : (cls?.sections || []);
+                    const ts = o.teachers || [];
+                    return (
+                      <tr key={o.id}>
+                        <td><b>{cls?.name || '—'}</b><div className="muted" style={{ fontSize: 11.5 }}>{cls?.code || ''}</div></td>
+                        <td>{secs.length ? secs.map((x) => <Badge key={x} kind="info">Sec {x}</Badge>) : '—'}</td>
+                        <td>
+                          {ts.length ? ts.map((t, i) => (
+                            <div key={t.id} style={{ fontSize: 12.5 }}>
+                              {i === 0 ? '⭐ ' : '· '}{t.full_name}{i === 0 ? ' (lead)' : ''}
+                            </div>
+                          )) : <span style={{ color: 'var(--red)', fontSize: 12.5 }}>koi teacher nahi</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })()}
+        <div className="hint" style={{ marginTop: 10 }}>
+          Badalna ho? <b>Classes → Open → Subjects &amp; Teachers → Teachers / Sections</b>, ya <b>Teachers → 📚</b>.
+        </div>
+      </Modal>
 
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Edit subject' : 'New subject (master list)'}
         footer={<><Btn onClick={() => setOpen(false)}>Cancel</Btn><Btn variant="primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save'}</Btn></>}>
