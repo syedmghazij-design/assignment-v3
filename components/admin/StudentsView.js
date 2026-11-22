@@ -34,6 +34,7 @@ export default function StudentsView({ store, reload }) {
   const [progress, setProgress] = useState({ done: 0, total: 0, errors: [] });
 
   const sectionsOf = (classId) => store.classes.find((c) => c.id === classId)?.sections || ['A'];
+  const subsOfClass = (classId) => store.subjects.filter((s) => s.class_id === classId);
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -258,7 +259,12 @@ export default function StudentsView({ store, reload }) {
                   <tr key={st.id}>
                     <td><b>{st.roll_no || '—'}</b></td>
                     <td>{st.full_name}</td>
-                    <td>{st.class?.name || <span className="muted">not set</span>}</td>
+                    <td>
+                      {st.class?.name || <span className="muted">not set</span>}
+                      {st.class_id && (
+                        <div className="muted" style={{ fontSize: 11 }}>{subsOfClass(st.class_id).length} subject(s)</div>
+                      )}
+                    </td>
                     <td>{st.section || '—'}</td>
                     <td>{showPw ? <code>{store.creds[st.id] || '—'}</code> : '••••••'}</td>
                     <td>{st.phone || '—'}</td>
@@ -302,6 +308,19 @@ export default function StudentsView({ store, reload }) {
             </Select>
           </Field>
         </div>
+        <Field label="Subjects (class se khud mil jaate hain)" hint="Is student ko in subjects ke assignments dikhenge">
+          <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+            {subsOfClass(form.class_id).length > 0 ? (
+              subsOfClass(form.class_id).map((x) => (
+                <Badge key={x.id} kind="gray">{x.name}{x.teacher?.full_name ? ` · ${x.teacher.full_name}` : ''}</Badge>
+              ))
+            ) : (
+              <span className="muted" style={{ fontSize: 12.5 }}>
+                {form.class_id ? 'Is class me abhi koi subject nahi — Admin → Subjects se add karein.' : 'Pehle class select karein.'}
+              </span>
+            )}
+          </div>
+        </Field>
         <Field label="Phone (optional)"><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
       </Modal>
 
@@ -338,6 +357,17 @@ export default function StudentsView({ store, reload }) {
         {!bulk.useRollAsPw && (
           <Field label="Common password"><Input value={bulk.password} onChange={(e) => setBulk({ ...bulk, password: e.target.value })} placeholder="min 6 characters" /></Field>
         )}
+        <Field label="Subjects (bulk students ko khud milenge)" hint="Class ke saare subjects">
+          <div className="row" style={{ gap: 6, flexWrap: 'wrap' }}>
+            {subsOfClass(bulk.class_id).length > 0 ? (
+              subsOfClass(bulk.class_id).map((x) => <Badge key={x.id} kind="gray">{x.name}</Badge>)
+            ) : (
+              <span className="muted" style={{ fontSize: 12.5 }}>
+                {bulk.class_id ? 'Is class me koi subject nahi — pehle Subjects add kareins.' : 'Class select karein.'}
+              </span>
+            )}
+          </div>
+        </Field>
         <div className="hint">Students ke naam filhal “Student 4701” type honge — baad me Edit se asli naam likh sakte hain. CSV download se list bhi nikal sakte hain.</div>
 
         {progress.total > 0 && (

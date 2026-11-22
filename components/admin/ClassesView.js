@@ -76,10 +76,23 @@ export default function ClassesView({ store, reload }) {
                   </div>
                   <Badge kind="info">{students.length} students</Badge>
                 </div>
-                <div className="row" style={{ marginTop: 12, gap: 6 }}>
-                  {(c.sections || []).map((s) => <Badge key={s} kind="gray">Section {s}</Badge>)}
+                <div className="row" style={{ marginTop: 12, gap: 6, flexWrap: 'wrap' }}>
+                  {(c.sections || []).map((s) => {
+                    const n = students.filter((x) => x.section === s).length;
+                    return <Badge key={s} kind="gray">Section {s} · {n}</Badge>;
+                  })}
                 </div>
-                <div className="muted" style={{ marginTop: 10, fontSize: 12.5 }}>{subjects.length} subject(s)</div>
+                <div className="muted" style={{ marginTop: 10, fontSize: 12.5 }}>
+                  {subjects.length} subject(s) · {students.length} students
+                </div>
+                {subjects.length > 0 && (
+                  <div className="row" style={{ marginTop: 8, gap: 4, flexWrap: 'wrap' }}>
+                    {subjects.slice(0, 4).map((s) => (
+                      <Badge key={s.id} kind="info">{s.name}{s.teacher?.full_name ? ` · ${s.teacher.full_name}` : ''}</Badge>
+                    ))}
+                    {subjects.length > 4 && <Badge kind="gray">+{subjects.length - 4}</Badge>}
+                  </div>
+                )}
                 <div className="row" style={{ marginTop: 14 }}>
                   <Btn size="sm" onClick={() => startEdit(c)}>Edit</Btn>
                   <Btn size="sm" variant="danger" onClick={() => remove(c)}>Delete</Btn>
@@ -92,7 +105,9 @@ export default function ClassesView({ store, reload }) {
 
       <Modal open={open} onClose={() => setOpen(false)} title={editing ? 'Edit class' : 'New class'}
         footer={<><Btn onClick={() => setOpen(false)}>Cancel</Btn><Btn variant="primary" onClick={save} disabled={busy}>Save</Btn></>}>
-        <Field label="Class name"><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="BS Computer Science" /></Field>
+        <Field label="Class / Program ka naam" hint="Jaise: BS Computer Science, BS AI, BS SE">
+          <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="BS Computer Science" />
+        </Field>
         <div className="grid g2">
           <Field label="Short code" hint="Unique, e.g. BS-CS-1"><Input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="BS-CS-1" /></Field>
           <Field label="Session"><Input value={form.session} onChange={(e) => setForm({ ...form, session: e.target.value })} placeholder="2026-2030" /></Field>

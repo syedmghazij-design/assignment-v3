@@ -46,7 +46,15 @@ export default function AppShell() {
     }
 
     if (error) {
-      setLoadError('Database error: ' + (error.message || 'unknown') + ' — Supabase me `notify pgrst, \'reload schema\';` chalao.');
+      {
+            const m = String(error.message || 'unknown');
+            const hint = /permission denied/i.test(m)
+              ? 'Supabase me `TURANT-FIX-GRANTS.sql` chalao (GRANT missing).'
+              : /does not exist|schema cache/i.test(m)
+              ? 'Supabase me `notify pgrst, \'reload schema\';` chalao.'
+              : 'Supabase → SQL Editor me `1-SETUP-DATABASE.sql` dobara chalao.';
+            setLoadError('Database error: ' + m + ' — ' + hint);
+          }
       setProfile(null);
     } else if (!data) {
       setLoadError('Is login ka profile record database me nahi mila. Supabase SQL Editor me 00-SETUP-ALL-IN-ONE.sql chalayen.');

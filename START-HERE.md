@@ -141,22 +141,59 @@ Supabase → neeche **⚙ Project Settings** → **API**
 
 ---
 
-# STEP 5 — Portal bharna (isi order me)
+# STEP 5 — Portal bharna (isi order me) ⚠️
 
-| # | Kahan | Kya |
+> **Order badalna nahi** — har step agle step ke liye zaroori hai.
+
+| # | Kahan | Kya karein |
 |---|---|---|
-| 1 | **Classes** → + New class | name, code, sections `A,B`, session |
-| 2 | **Teachers** → + New teacher | name, login ID, password |
-| 3 | **Subjects** → + New subject | class + teacher assign |
-| 4 | **Students** → ⚡ Bulk add | From `4701` → To `4750`, password = roll number |
-| 5 | **Time Table** | box per click → subject/time → Save *(ya 🖼 image se OCR)* |
-| 6 | **Attendance** | sheet ki photo upload → OCR → check → Save |
+| **1** | **Classes** → + New class | `BS Computer Science` / code `BS-CS` / sections `A,B` / session `2026-2030` |
+| **2** | **Teachers** → + New teacher | naam + login ID + password |
+| **3** | **Subjects** → + New subject | class select → subject name → **teacher assign** |
+| **4** | **Teachers** → 📚 button | class-wise tick lagao — ek teacher ko **kai classes ke kai subjects** de sakte hain |
+| **5** | **Students** → + New ya ⚡ Bulk | class + section select → **subjects khud dikh jayenge** |
+| **6** | **Time Table** | class + **section** select → har box per click → subject/time/room → Save |
+| **7** | **Attendance** | class + section → sheet ki photo upload → OCR → check → Save |
 
-**Test karo (5 minute):**
-- Ek student se login karo: roll number + password
-- **Subjects** → subject → **Upload** ek file
-- Teacher se login → **To Review** → file open → marks → **Accept**
-- Student per wapas → **Accepted** card per click → status badal gaya ✅
+### Cheezein khud jud jati hain
+- **Student ke subjects** = us ki class ke subjects → class badlo, subjects khud badal jate hain
+- **Teacher ki classes** = us ke subjects ki classes → subject assign = class assign
+- **Time table** = class **+ section** ka alag (A ka alag, B ka alag)
+
+---
+
+## 👩‍🏫 Teacher ka flow (login ke baad)
+
+```
+My Classes  →  class kholein (BS CS)
+            →  subject ki 2 buttons:
+                 ➕ Nayi assignment deni hai   →  title, deadline, marks, file → publish
+                 📥 Check karni hai (3)        →  saari submissions ek list me → Review
+```
+
+- **To Review** = saari nayi submissions (ek jagah)
+- **Late Submissions** = deadline ke baad aayi — alag section
+- **My Schedule** = sirf apni classes ka time table
+- Review me: file dekho → marks + feedback → **Accept** ya **Reject** (reject hone par student dobara upload kar sakta hai)
+
+---
+
+## 👨‍🎓 Student ka flow
+
+```
+Subjects → subject kholein → assignment kholein → file upload
+```
+- Deadline ke baad upload → **Late** mark hota hai (DB trigger)
+- Reject hone par **dobara upload** ho sakta hai
+- Dashboard per pending / accepted / rejected ke clickable boxes
+
+---
+
+## ✅ Test karo (5 minute)
+
+1. Ek student se login (roll number + password) → subject → file upload
+2. Teacher se login → My Classes → class → **📥 Check karni hai** → Review → marks → **Accept**
+3. Student per wapas → **Accepted** box per click → status badal gaya ✅
 
 ---
 

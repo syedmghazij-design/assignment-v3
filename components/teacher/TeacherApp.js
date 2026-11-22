@@ -8,6 +8,8 @@ import { DAYS_SHORT, fmtDate, fmtDateTime, initials, openFile, pct, safeName, ti
 
 export default function TeacherApp({ profile, onLogout, onChangePw }) {
   const [tab, setTab] = useState('dashboard');
+  const [openClass, setOpenClass] = useState(null);
+  const [checkSubject, setCheckSubject] = useState(null);
   const [openSubject, setOpenSubject] = useState(null);
   const [openAssignment, setOpenAssignment] = useState(null);
   const [newAsgFor, setNewAsgFor] = useState(null);
@@ -61,15 +63,17 @@ export default function TeacherApp({ profile, onLogout, onChangePw }) {
     return { subjects: d.subjects.length, assignments: d.assignments.length, pending, latePending, total: d.subs.length };
   }, [d]);
 
-  const go = (key, s, a) => {
+  const go = (key, c, s, a) => {
+    setOpenClass(c || null);
     setOpenSubject(s || null);
     setOpenAssignment(a || null);
+    setCheckSubject(null);
     setTab(key);
   };
 
   const NAV = [
     { key: 'dashboard', label: 'Dashboard', ico: '▦' },
-    { key: 'subjects', label: 'My Subjects', ico: '▤' },
+    { key: 'classes', label: 'My Classes', ico: '🏫' },
     { key: 'pending', label: 'To Review', ico: '⏳' },
     { key: 'late', label: 'Late Submissions', ico: '⌛' },
     { key: 'timetable', label: 'My Schedule', ico: '◷' },
@@ -109,24 +113,49 @@ export default function TeacherApp({ profile, onLogout, onChangePw }) {
           <>
             {tab === 'dashboard' && <Dashboard profile={profile} stats={stats} d={d} go={go} onNew={() => setNewAsgFor({})} onReview={setReview} />}
 
-            {tab === 'subjects' && !openSubject && (
-              <MySubjects subjects={d.subjects} d={d} onOpen={(s) => go('subjects', s)} onNew={() => setNewAsgFor({})} />
+            {tab === 'classes' && !openClass && (
+              <MyClasses subjects={d.subjects} d={d} onOpen={(c) => go('classes', c)} />
             )}
 
-            {tab === 'subjects' && openSubject && !openAssignment && (
+            {tab === 'classes' && openClass && !openSubject && (
+              <ClassView
+                cls={openClass}
+                subjects={d.subjects.filter((s) => s.class_id === openClass.id)}
+                d={d}
+                timetable={d.timetable.filter((t) => t.class_id === openClass.id)}
+                onBack={() => go('classes')}
+                onOpenSubject={(s) => go('classes', openClass, s)}
+                onNew={(s) => setNewAsgFor({ subject_id: s.id })}
+                onCheck={(s) => { setCheckSubject(s); setOpenSubject(s); setTab('classes'); }}
+              />
+            )}
+
+            {tab === 'classes' && openSubject && checkSubject && checkSubject.id === openSubject.id && (
+              <SubmissionList
+                title={`${openSubject.name} — check karein`}
+                subtitle={`${openClass?.name || ''} · saari submissions ek jagah`}
+                rows={d.subs.filter((x) => d.assignments.some((a) => a.id === x.assignment_id && a.subject_id === openSubject.id))}
+                assignments={d.assignments}
+                onReview={setReview}
+                onBack={() => { setCheckSubject(null); setOpenSubject(null); }}
+              />
+            )}
+
+            {tab === 'classes' && openSubject && !checkSubject && !openAssignment && (
               <SubjectView
                 subject={openSubject}
                 assignments={d.assignments.filter((a) => a.subject_id === openSubject.id)}
                 subs={d.subs}
-                onBack={() => go('subjects')}
+                onBack={() => { setOpenSubject(null); setCheckSubject(null); }}
                 onNew={() => setNewAsgFor({ subject_id: openSubject.id })}
-                onOpenAssignment={(a) => go('subjects', openSubject, a)}
+                onCheck={() => setCheckSubject(openSubject)}
+                onOpenAssignment={(a) => setOpenAssignment(a)}
                 onReview={setReview}
                 reload={load}
               />
             )}
 
-            {tab === 'subjects' && openSubject && openAssignment && (
+            {tab === 'classes' && openSubject && openAssignment && (
               <AssignmentView
                 assignment={openAssignment}
                 subs={d.subs.filter((s) => s.assignment_id === openAssignment.id)}
@@ -204,8 +233,8 @@ function Dashboard({ profile, stats, d, go, onNew, onReview }) {
       </div>
 
       <div className="grid g4" style={{ marginBottom: 16 }}>
-        <Stat label="My subjects" value={stats.subjects} hint="Is semester" onClick={() => go('subjects')} />
-        <Stat label="Assignments" value={stats.assignments} hint="Banayi hui" onClick={() => go('subjects')} />
+        <Stat label="My subjects" value={stats.subjects} hint="Is semester" onClick={() => go('classes')} />
+        <Stat label="Assignments" value={stats.assignments} hint="Banayi hui" onClick={() => go('classes')} />
         <Stat label="To review" value={stats.pending} tone="warn" hint="Students wait kar rahe hain" onClick={() => go('pending')} />
         <Stat label="Late pending" value={stats.latePending} tone="bad" hint="Deadline ke baad wali" onClick={() => go('late')} />
       </div>
@@ -237,7 +266,7 @@ function Dashboard({ profile, stats, d, go, onNew, onReview }) {
         </Card>
 
         <Card>
-          <SectionTitle title="Mere subjects" right={<Btn size="sm" onClick={() => go('subjects')}>Open</Btn>} />
+          <SectionTitle title="Meri classes" right={<Btn size="sm" onClick={() => go('classes')}>Open</Btn>} />
           {d.subjects.length === 0 ? (
             <Empty icon="📚" text="Admin ne abhi koi subject assign nahi kiya." />
           ) : (
@@ -245,7 +274,7 @@ function Dashboard({ profile, stats, d, go, onNew, onReview }) {
               {d.subjects.map((s) => {
                 const list = d.assignments.filter((a) => a.subject_id === s.id);
                 return (
-                  <div key={s.id} className="item" onClick={() => go('subjects', s)} role="button" style={{ cursor: 'pointer' }}>
+                  <div key={s.id} className="item" onClick={() => go('classes', null, s)} role="button" style={{ cursor: 'pointer' }}>
                     <div>
                       <div className="t">{s.name}</div>
                       <div className="m"><span>{s.class?.name}</span><span>{s.code}</span></div>
@@ -263,55 +292,149 @@ function Dashboard({ profile, stats, d, go, onNew, onReview }) {
 }
 
 /* ================================================================== */
-function MySubjects({ subjects, d, onOpen, onNew }) {
-  const byClass = subjects.reduce((acc, s) => {
-    const k = s.class?.name || 'No class';
-    (acc[k] = acc[k] || []).push(s);
-    return acc;
-  }, {});
+function MyClasses({ subjects, d, onOpen }) {
+  const map = new Map();
+  subjects.forEach((s) => {
+    const key = s.class_id || 'none';
+    if (!map.has(key)) {
+      map.set(key, { id: s.class_id, name: s.class?.name || 'No class', code: s.class?.code || '', subjects: [] });
+    }
+    map.get(key).subjects.push(s);
+  });
+  const classes = Array.from(map.values());
+
+  const pendingOf = (ids) => {
+    const asgIds = d.assignments.filter((a) => ids.includes(a.subject_id)).map((a) => a.id);
+    return d.subs.filter((x) => asgIds.includes(x.assignment_id) && x.status === 'pending').length;
+  };
 
   return (
     <>
       <div className="topbar">
-        <div><h1>My Subjects</h1><div className="sub">Class wise segments — kisi subject per click karein</div></div>
-        <Btn variant="primary" onClick={onNew}>+ New assignment</Btn>
+        <div><h1>My Classes</h1><div className="sub">Aap jin classes ko parhate hain — class kholein phir subject chunein</div></div>
       </div>
 
-      {subjects.length === 0 ? (
-        <Card><Empty icon="📚" text="Koi subject assign nahi hua. Admin se rabta karein." /></Card>
+      {classes.length === 0 ? (
+        <Card><Empty icon="🏫" text="Koi class/subject assign nahi hui. Admin se rabta karein (Admin → Teachers → Subjects)." /></Card>
       ) : (
-        Object.entries(byClass).map(([cls, list]) => (
-          <div key={cls} style={{ marginBottom: 22 }}>
-            <SectionTitle title={cls} sub={`${list.length} subject(s)`} />
-            <div className="segs">
-              {list.map((s) => {
-                const asg = d.assignments.filter((a) => a.subject_id === s.id);
-                const pending = d.subs.filter((x) => asg.some((a) => a.id === x.assignment_id) && x.status === 'pending').length;
-                return (
-                  <button key={s.id} className="seg" onClick={() => onOpen(s)}>
-                    <div className="between">
-                      <div className="nm">{s.name}</div>
-                      <span style={{ width: 10, height: 10, borderRadius: 99, background: s.color || '#0f9d58' }} />
-                    </div>
-                    <div className="cd">{s.code || '—'} · {s.semester || ''}</div>
-                    <div className="m" style={{ marginTop: 10, fontSize: 12, color: 'var(--ink-3)', display: 'flex', gap: 10 }}>
-                      <span><b>{asg.length}</b> assignments</span>
-                      <span><b style={{ color: 'var(--amber)' }}>{pending}</b> to review</span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ))
+        <div className="grid g3">
+          {classes.map((c) => {
+            const ids = c.subjects.map((x) => x.id);
+            const pend = pendingOf(ids);
+            const asgCount = d.assignments.filter((a) => ids.includes(a.subject_id)).length;
+            return (
+              <Card key={c.id || c.name}>
+                <div className="between">
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 16 }}>{c.name}</div>
+                    <div className="muted" style={{ fontSize: 12 }}>{c.code || '—'}</div>
+                  </div>
+                  {pend > 0 ? <Badge kind="pending">{pend} to review</Badge> : <Badge kind="gray">clear</Badge>}
+                </div>
+                <div className="row" style={{ marginTop: 12, gap: 6, flexWrap: 'wrap' }}>
+                  {c.subjects.map((x) => <Badge key={x.id} kind="info">{x.name}</Badge>)}
+                </div>
+                <div className="muted" style={{ marginTop: 10, fontSize: 12.5 }}>
+                  {c.subjects.length} subject(s) · {asgCount} assignment(s)
+                </div>
+                <div style={{ marginTop: 14 }}>
+                  <Btn variant="primary" onClick={() => onOpen(c)}>Class kholein →</Btn>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
       )}
     </>
   );
 }
 
 /* ================================================================== */
-function SubjectView({ subject, assignments, subs, onBack, onNew, onOpenAssignment, onReview, reload }) {
+function ClassView({ cls, subjects, d, timetable, onBack, onOpenSubject, onNew, onCheck }) {
+  return (
+    <>
+      <div className="topbar">
+        <div>
+          <button className="btn-link" onClick={onBack}>← My classes</button>
+          <h1 style={{ marginTop: 6 }}>{cls.name}</h1>
+          <div className="sub">{cls.code || '—'} · {subjects.length} subject(s) — har subject se assignment de sakte hain ya check kar sakte hain</div>
+        </div>
+      </div>
+
+      {subjects.length === 0 ? (
+        <Card><Empty icon="📚" text="Is class me aap ka koi subject nahi." /></Card>
+      ) : (
+        <div className="stack">
+          {subjects.map((s) => {
+            const asg = d.assignments.filter((a) => a.subject_id === s.id);
+            const asgIds = asg.map((a) => a.id);
+            const rows = d.subs.filter((x) => asgIds.includes(x.assignment_id));
+            const pending = rows.filter((x) => x.status === 'pending').length;
+            const late = rows.filter((x) => x.is_late).length;
+            return (
+              <Card key={s.id} className="tight">
+                <div className="between">
+                  <div style={{ minWidth: 0 }}>
+                    <div className="row" style={{ gap: 8 }}>
+                      <span style={{ width: 10, height: 10, borderRadius: 99, background: s.color || '#0f9d58' }} />
+                      <b style={{ fontSize: 15.5 }}>{s.name}</b>
+                      <span className="muted" style={{ fontSize: 12 }}>{s.code || ''} {s.semester ? `· ${s.semester}` : ''}</span>
+                    </div>
+                    <div className="m" style={{ marginTop: 8, fontSize: 12.5, color: 'var(--ink-3)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      <span><b>{asg.length}</b> assignment(s)</span>
+                      <span><b style={{ color: 'var(--amber)' }}>{pending}</b> to review</span>
+                      <span><b style={{ color: 'var(--red)' }}>{late}</b> late</span>
+                      <span><b>{rows.length}</b> total submissions</span>
+                    </div>
+                  </div>
+                  <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+                    <Btn variant="primary" onClick={() => onNew(s)}>➕ Nayi assignment</Btn>
+                    <Btn onClick={() => onCheck(s)}>📥 Check karni hai{pending ? ` (${pending})` : ''}</Btn>
+                    <Btn onClick={() => onOpenSubject(s)}>Open</Btn>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {timetable.length > 0 && (
+        <div style={{ marginTop: 22 }}>
+          <SectionTitle title="Is class ka time table" sub="Aap ke subjects ki classes" />
+          <Card className="tight" style={{ padding: 0 }}>
+            <div className="tbl-scroll">
+              <table className="tbl">
+                <thead><tr><th>Day</th><th>Slot</th><th>Subject</th><th>Section</th><th>Room</th></tr></thead>
+                <tbody>
+                  {timetable
+                    .slice()
+                    .sort((a, b) => String(a.day).localeCompare(String(b.day)) || String(a.slot).localeCompare(String(b.slot)))
+                    .map((t) => (
+                      <tr key={t.id}>
+                        <td><b>{t.day}</b></td>
+                        <td>{t.slot}</td>
+                        <td>{t.subject?.name || '—'}</td>
+                        <td>{t.section || '—'}</td>
+                        <td>{t.room || '—'}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ================================================================== */
+function SubjectView({ subject, assignments, subs, onBack, onNew, onCheck, onOpenAssignment, onReview, reload }) {
   const [confirmDel, setConfirmDel] = useState(null);
+  const asgIds = assignments.map((a) => a.id);
+  const myRows = subs.filter((x) => asgIds.includes(x.assignment_id));
+  const pendingCount = myRows.filter((x) => x.status === 'pending').length;
 
   async function remove(a) {
     const { error } = await supabase.from('assignments').delete().eq('id', a.id);
@@ -329,7 +452,10 @@ function SubjectView({ subject, assignments, subs, onBack, onNew, onOpenAssignme
           <h1 style={{ marginTop: 6 }}>{subject.name}</h1>
           <div className="sub">{subject.class?.name} · {subject.code} · {assignments.length} assignment(s)</div>
         </div>
-        <Btn variant="primary" onClick={onNew}>+ New assignment</Btn>
+        <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+          <Btn variant="primary" onClick={onNew}>➕ Nayi assignment</Btn>
+          <Btn onClick={onCheck}>📥 Check karni hai{pendingCount ? ` (${pendingCount})` : ''}</Btn>
+        </div>
       </div>
 
       {assignments.length === 0 ? (
@@ -424,7 +550,7 @@ function AssignmentView({ assignment, subs, onBack, onReview }) {
 }
 
 /* ================================================================== */
-function SubmissionList({ title, subtitle, rows, assignments, onReview, defaultFilter = 'all', forceLate }) {
+function SubmissionList({ title, subtitle, rows, assignments, onReview, defaultFilter = 'all', forceLate, onBack }) {
   const [filter, setFilter] = useState(defaultFilter);
   const filtered = useMemo(() => {
     if (filter === 'ontime') return rows.filter((s) => !s.is_late);
@@ -434,7 +560,13 @@ function SubmissionList({ title, subtitle, rows, assignments, onReview, defaultF
 
   return (
     <>
-      <div className="topbar"><div><h1>{title}</h1><div className="sub">{subtitle}</div></div></div>
+      <div className="topbar">
+        <div>
+          {onBack && <button className="btn-link" onClick={onBack}>← Back</button>}
+          <h1 style={{ marginTop: onBack ? 6 : 0 }}>{title}</h1>
+          <div className="sub">{subtitle}</div>
+        </div>
+      </div>
       {!forceLate && (
         <Tabs active={filter} onChange={setFilter} tabs={[
           { key: 'all', label: 'All', count: rows.length },

@@ -15,6 +15,8 @@ export default function TeachersView({ store, reload }) {
   const [newPw, setNewPw] = useState('');
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ full_name: '', username: '', password: '', phone: '' });
+  const [assignT, setAssignT] = useState(null);
+  const [selSubs, setSelSubs] = useState([]);
 
   const list = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -71,6 +73,39 @@ export default function TeachersView({ store, reload }) {
     setBusy(false);
   }
 
+  function openAssign(t) {
+    setAssignT(t);
+    setSelSubs(store.subjects.filter((x) => x.teacher_id === t.id).map((x) => x.id));
+  }
+
+  function toggleSub(id) {
+    setSelSubs((cur) => (cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id]));
+  }
+
+  async function saveAssign() {
+    if (!assignT) return;
+    setBusy(true);
+    try {
+      const current = store.subjects.filter((x) => x.teacher_id === assignT.id).map((x) => x.id);
+      const add = selSubs.filter((id) => !current.includes(id));
+      const rem = current.filter((id) => !selSubs.includes(id));
+      if (add.length) {
+        const { error } = await supabase.from('subjects').update({ teacher_id: assignT.id }).in('id', add);
+        if (error) throw error;
+      }
+      if (rem.length) {
+        const { error } = await supabase.from('subjects').update({ teacher_id: null }).in('id', rem);
+        if (error) throw error;
+      }
+      toast(`${selSubs.length} subject(s) assign ho gaye ✅`);
+      setAssignT(null);
+      reload();
+    } catch (e) {
+      toast(e.message, 'err');
+    }
+    setBusy(false);
+  }
+
   async function doReset() {
     if (newPw.length < 6) return toast('Password kam az kam 6 characters', 'err');
     setBusy(true);
@@ -117,7 +152,7 @@ export default function TeachersView({ store, reload }) {
           <div className="tbl-scroll">
             <table className="tbl">
               <thead>
-                <tr><th>Name</th><th>Login ID</th><th>Password</th><th>Subjects</th><th>Phone</th><th></th></tr>
+                <tr><th>Name</th><th>Login ID</th><th>Password</th><th>Subjects &amp; Classes</th><th>Phone</th><th></th></tr>
               </thead>
               <tbody>
                 {list.map((t) => {
@@ -127,17 +162,23 @@ export default function TeachersView({ store, reload }) {
                       <td><b>{t.full_name}</b></td>
                       <td><code>{t.username}</code></td>
                       <td>{showPw ? <code>{store.creds[t.id] || '—'}</code> : '••••••'}</td>
-                      <td>
-                        {subs.length === 0 ? <span className="muted">—</span> : (
-                          <div className="row" style={{ gap: 4 }}>
-                            {subs.slice(0, 3).map((s) => <Badge key={s.id} kind="gray">{s.name}</Badge>)}
-                            {subs.length > 3 && <Badge kind="info">+{subs.length - 3}</Badge>}
-                          </div>
+                      <td style={{ maxWidth: 260 }}>
+                        {subs.length === 0 ? <span className="muted">koi subject nahi — assign karein</span> : (
+                          <>
+                            <div className="row" style={{ gap: 4, flexWrap: 'wrap' }}>
+                              {subs.slice(0, 3).map((s) => <Badge key={s.id} kind="gray">{s.name}</Badge>)}
+                              {subs.length > 3 && <Badge kind="info">+{subs.length - 3}</Badge>}
+                            </div>
+                            <div className="muted" style={{ fontSize: 11.5, marginTop: 5 }}>
+                              🏫 {Array.from(new Set(subs.map((s) => s.class?.name).filter(Boolean))).join(', ') || '—'}
+                            </div>
+                          </>
                         )}
                       </td>
                       <td>{t.phone || '—'}</td>
                       <td>
                         <div className="row" style={{ gap: 6 }}>
+                          <Btn size="sm" variant="primary" onClick={() => openAssign(t)}>📚 Subjects</Btn>
                           <Btn size="sm" onClick={() => startEdit(t)}>Edit</Btn>
                           <Btn size="sm" onClick={() => { setPwUser(t); setNewPw(''); }}>Reset pw</Btn>
                           <Btn size="sm" variant="danger" onClick={() => remove(t)}>Delete</Btn>
@@ -164,6 +205,50 @@ export default function TeachersView({ store, reload }) {
           </Field>
           <Field label="Phone (optional)"><Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
         </div>
+      </Modal>
+
+      <Modal open={!!assignT} onClose={() => setAssignT(null)} wide
+        title={`Subjects assign karein — ${assignT?.full_name || ''}`}
+        footer={<><Btn onClick={() => setAssignT(null)}>Cancel</Btn><Btn variant="primary" onClick={saveAssign} disabled={busy}>{busy ? 'Saving…' : `Save (${selSubs.length} selected)`}</Btn></>}>
+        <div className="hint" style={{ marginBottom: 12 }}>
+          Jis subject per tick lagayenge wo is teacher ko assign ho jaega — aur us ki class bhi khud aa jayegi.
+          Aap ek teacher ko <b>kai classes ke kai subjects</b> de sakte hain.
+        </div>
+        {store.subjects.length === 0 ? (
+          <div className="err">Pehle Admin → Subjects me subjects banayen (class ke saath).</div>
+        ) : (
+          store.classes.map((c) => {
+            const list = store.subjects.filter((x) => x.class_id === c.id);
+            if (!list.length) return null;
+            return (
+              <div key={c.id} style={{ marginBottom: 14 }}>
+                <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 6, color: 'var(--green-800)' }}>
+                  🏫 {c.name} <span className="muted" style={{ fontWeight: 500 }}>{c.code}</span>
+                </div>
+                {list.map((x) => {
+                  const mine = x.teacher_id === assignT?.id;
+                  const other = x.teacher_id && x.teacher_id !== assignT?.id;
+                  return (
+                    <label key={x.id} className="between"
+                      style={{ padding: '7px 10px', border: '1px solid var(--line)', borderRadius: 10, marginBottom: 6, cursor: 'pointer', background: selSubs.includes(x.id) ? 'var(--green-50)' : '#fff' }}>
+                      <span className="row" style={{ gap: 8 }}>
+                        <input type="checkbox" checked={selSubs.includes(x.id)} onChange={() => toggleSub(x.id)} />
+                        <b style={{ fontSize: 13 }}>{x.name}</b>
+                        <span className="muted" style={{ fontSize: 11.5 }}>{x.code || ''}</span>
+                      </span>
+                      <span style={{ fontSize: 11.5 }}>
+                        {mine ? <Badge kind="accepted">assa hai</Badge>
+                          : other ? <span className="muted">abhi: {x.teacher?.full_name || 'kisi aur'}</span>
+                          : <span className="muted">koi teacher nahi</span>}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            );
+          })
+        )}
+        <div className="hint">Tick hatane se subject “no teacher” ho jaega (delete nahi hota).</div>
       </Modal>
 
       <Modal open={!!pwUser} onClose={() => setPwUser(null)} title={`Reset password — ${pwUser?.full_name || ''}`}
